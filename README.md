@@ -15,7 +15,7 @@ to take input from clipboard, or GoogleDrive, or other drives.
 
 And you will see the cool 3D Viewer
 
-![alt text](screen.jpg "Screen")
+![alt text](screen.png "Screen")
 
 
 
