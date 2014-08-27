@@ -1,0 +1,1168 @@
+<html>
+<head>
+    <title>   </title>
+    <meta name="viewport" content="width=device-width, initial-scale=0.6, user-scalable=yes, minimum-scale=0.2, maximum-scale=3.0">
+
+	<style type="text/css">
+body {
+	background-color: #000000;
+	padding:0;
+	margin:0;
+	font-weight: bold;
+	overflow:hidden;
+}
+
+.left-arrow {
+    width: 40px; 
+    height: 0; 
+    border-top: 25px solid transparent;
+    border-bottom: 25px solid transparent;  
+    border-right: 25px solid #006699; 
+	float: left;
+	margin-right: 30px;
+	margin-left: 30px;
+}
+.right-arrow {
+    width: 40px; 
+    height: 0; 
+    border-top: 25px solid transparent;
+    border-bottom: 25px solid transparent;  
+    border-left: 25px solid #006699;
+	float: left;
+}
+
+.up-arrow {
+    width: 0; 
+    height: 0; 
+    border-left: 10px solid transparent;
+    border-right: 10px solid transparent;   
+    border-bottom: 10px solid #117300;
+}
+.down-arrow {
+    width: 0; 
+    height: 0; 
+    border-left: 15px solid transparent;
+    border-right: 15px solid transparent;
+    border-top: 15px solid #006699;
+}
+
+</style>
+
+    <link href="view.css" rel="stylesheet" type="text/css"/>
+    <script type="text/javascript" src="jquery.min.js"></script>
+
+	<script type="text/javascript">
+		function InitWebGLContext() {
+			if ( $.browser && ! $.browser.msie ) {
+				log( "return" );
+				return;
+			}
+			var glCanvas = document.getElementById("theCanvas");
+			var gl;
+			// first, try standard WebGL context
+			if( glCanvas.getContext === undefined )
+			{
+				alert("Your browser does not support HTML5 Canvas, please update to IE9, or set IE9 to IE9 Mode");
+				return;
+			}
+			gl = glCanvas.getContext("webgl");
+			if (!gl) {
+				// if failed, try experimental one
+				log(" webgl failed ");
+				gl = glCanvas.getContext("experimental-webgl");
+			}
+			if (!gl) {
+				alert("Your browser does not support WebGL\nPlease go to \n\nhttp://iewebgl.com/Download.aspx\n\nto install plugin");
+				//document.location.href = "http://iewebgl.com/";
+				return;
+			}
+
+			// here we get WebGL context -
+			// for demonstation let's show some info
+			var text = (
+				"WebGL version=" + gl.getParameter(gl.VERSION) + "\n" +
+				"WebGL vendor=" + gl.getParameter(gl.VENDOR) + "\n" +
+				"WebGL renderer=" + gl.getParameter(gl.RENDERER) + "\n"
+			);
+			log( text );
+		}
+	</script>
+
+    <script type="text/javascript" src="three.js"></script>
+	<script src="three-fonts/helvetiker_regular.typeface.js"></script>
+</head>
+
+<body onload="InitWebGLContext()" >
+
+<div id="container">	
+    <div id="header" >
+        <div id="header-inner" style="float:left;">
+            <h3 id="header-text">	Electricity Usage History  </h3>
+            <span> Mouse to rotate, mouse wheel to zoom, ctrlkey + mouse to move </span>
+			<BR>
+            <span ID="status">  </span>
+        </div>
+		<div class="left-arrow"></div>
+		<div class="right-arrow"></div>
+		<div id="meterinfo" class="round-border" style="float:left;position:absolute;display:none;left:-2000px; width:250px;height:14px;">
+			<div>
+				<span id="meterhead" style="text-align: left; font-size: 0.7em;"></span><BR>
+				<textarea id="metertext" cols="80" rows="15"></textarea>
+			</div>
+		</div>
+    </div>
+	&nbsp;
+    <div id="content" style="width:100%; height:100%; background-color: #010409;">
+        <canvas id="theCanvas" width="1" height="1" style="display:none">
+            <p>This example requires a browser that supports the
+                <a href="http://www.w3.org/html/wg/html5/">HTML5</a>
+                &lt;canvas&gt; feature.</p>
+        </canvas>
+    </div>
+
+
+</div>
+
+</body>
+
+
+<script type="text/javascript">
+
+var fullscreen = 0;
+var fullscreen_w = 0;
+var fullscreen_h = 0;
+
+function gofull() {
+	fullscreen = 1;
+	var w = window.innerWidth;
+	var h = window.innerHeight;
+	fullscreen_w = w;
+	fullscreen_h = h;
+
+	$("#container").css('width', w+'px');
+	$("#container").css('position', 'absolute');
+	w -= 5;
+	$("#content").css('width',w+'px' );
+	$("#content").css('height', h+'px');
+	$("#content").css('top', '0px' );
+	$("#content").css('left', '0px');
+	w -= 4;
+	//$("#theCanvas").css('width', w+'px' );
+	//$("#theCanvas").css('height', h+'px');
+}
+
+function go_custom() {
+	var url = "/charts/meter_custom.html?serial=" + urlParams['serial'];
+	window.location.href = url;
+}
+
+
+function getParameters() {
+  var searchString = window.location.search.substring(1)
+    , params = searchString.split("&")
+    , hash = {}
+    ;
+
+  for (var i = 0; i < params.length; i++) {
+    var val = params[i].split("=");
+    hash[unescape(val[0])] = unescape(val[1]);
+  }
+  return hash;
+}
+
+
+function log () {
+  if (typeof console == 'undefined') {
+	  return;
+  }
+  try {
+    var hms = ">";
+	arguments[0] = hms + arguments[0];
+
+	if (/MSIE/.test(navigator.userAgent) && !window.opera) {
+		console.log(arguments[0]);
+	} else {
+		console.log.apply(console, arguments);
+	}
+  } catch(e) { console.log(e); };
+}
+
+var urlHashJSON	= {
+	read	: function(){
+		if( !window.location.hash )	return undefined;
+		var hashStr	= window.location.hash.substring(1);
+		var options	= JSON.parse(decodeURIComponent(hashStr));
+		return options;
+	},
+	write	: function(options){
+		var hashStr	= encodeURIComponent(JSON.stringify(options));
+		window.location.hash	= '#'+hashStr;
+	}
+};
+
+
+/**
+ * Converts an HSV color value to RGB. Conversion formula
+ * adapted from http://en.wikipedia.org/wiki/HSV_color_space.
+ * Assumes h, s, and v are contained in the set [0, 1] and
+ * returns r, g, and b in the set [0, 255].
+ *
+ * @param   Number  h       The hue
+ * @param   Number  s       The saturation
+ * @param   Number  v       The value
+ * @return  Array           The RGB representation
+ */
+function HSVToRGB(h, s, v){
+    var r, g, b;
+
+    var i = Math.floor(h * 6);
+    var f = h * 6 - i;
+    var p = v * (1 - s);
+    var q = v * (1 - f * s);
+    var t = v * (1 - (1 - f) * s);
+
+    switch(i % 6){
+        case 0: r = v, g = t, b = p; break;
+        case 1: r = q, g = v, b = p; break;
+        case 2: r = p, g = v, b = t; break;
+        case 3: r = p, g = q, b = v; break;
+        case 4: r = t, g = p, b = v; break;
+        case 5: r = v, g = p, b = q; break;
+    }
+	return [ r,g,b ];
+	//return { 'r':r, 'g':g, 'b':b };
+}
+
+
+
+// ----------------- other objects --------------- //
+
+var yawNode;
+var pitchNode;
+
+/* As mouse drags, we will update the rotate nodes */
+
+var lastX;
+var lastY;
+var dragging = false;
+
+var newInput = false, newInputXY = false;
+var yaw   = Math.PI/2;
+var pitch = 0.15;
+var camera_x = 0;
+var camera_y = 0;
+var camera_z = 600;
+var target;
+
+var eye   =  { x: 0.0, y: 150.0, z: 1600 };
+var look  =  { x: 0.0, y:1.0 };
+var zoomDelta = 0;
+var mouseX, mouseY;
+var Xoffset   = 0;
+var Yoffset   = 150;
+
+
+var container, stats;
+var camera, scene, renderer, projector;
+var mergedGeo;
+var geometry, group;
+var objects = [];
+
+var bevelThickness 	= 0.1,
+	bevelSize 		= 0.2,
+	bevelSegments 	= 3,
+	bevelEnabled 	= true,
+	bend 			= false,
+	faceMaterial,
+
+	font = "optimer",       // helvetiker, optimer, gentilis, droid sans, droid serif
+	weight = "normal",        // normal bold
+	style = "normal";       // normal italic
+
+
+
+function AddText(textstr, x,y,z, rotx,roty, scale,textcol )
+{
+	if( scale == undefined ) { scale = 1.0; }
+	var text3d = new THREE.TextGeometry( textstr, {
+					size: 40*scale,
+					height: 1,
+					curveSegments: 4,
+					material: 0,
+					extrudeMaterial: 1,
+
+					font: "helvetiker",
+					weight: "normal",
+					style: "normal",
+
+					bevelThickness: bevelThickness,
+                    bevelSize: bevelSize,
+                    bevelEnabled: bevelEnabled,
+	});
+
+	if( text3d ) {
+		//text3d.materials = [ textMaterialFront, textMaterialSide ];
+		text3d.computeBoundingBox();
+		text3d.computeVertexNormals();
+		if( textcol == undefined ) { textcol = 0xEECC22; }
+		var textMaterial = //new THREE.MeshBasicMaterial( { color: (textcol), overdraw: true } );
+		new THREE.MeshFaceMaterial( [ 
+			new THREE.MeshPhongMaterial( { color: 0xEECC22, shading: THREE.FlatShading } ), // front
+			new THREE.MeshPhongMaterial( { color: 0xff0000, shading: THREE.SmoothShading } ) // side
+		] );
+		var text = new THREE.Mesh( text3d, textMaterial );
+
+		//text.doubleSided = false;
+
+		text.position.x = x-text3d.boundingBox.max.x;
+		text.position.y = y;
+		text.position.z = z;
+
+		text.rotation.x = rotx;
+		text.rotation.y = roty;
+		text.rotation.z = 0;
+
+		return text;
+	}
+}
+
+
+function CreateRuler(x,y,z,width,blockwidth,n_meters,n_hours)
+{
+	var imgTexture = THREE.ImageUtils.loadTexture( "images/ruler3hr.gif" );
+	imgTexture.wrapS = imgTexture.wrapT = THREE.RepeatWrapping;
+	//imgTexture.repeat.set((n_hours/(24)),1);
+	imgTexture.format = THREE.RGBFormat;
+
+	var shininess = 5, shading = THREE.SmoothShading;
+	var materials = [];
+
+	materials.push( new THREE.MeshPhongMaterial( { map: imgTexture, perPixel: true, color: 0x333333, ambient: 0x111111, specular: 0x999999, shininess: shininess, shading: shading } ) );
+
+	var geometry = new THREE.PlaneGeometry( width/2, blockwidth/0.5, 2, 2 );
+	var obj = new THREE.Mesh( geometry, materials[0] );
+	obj.position.x = -(blockwidth/2);
+	obj.position.y = y - (blockwidth/1.40);
+	obj.position.z = (z/2) + (blockwidth*.70);
+	obj.scale.x = 4.0;
+	obj.rotation.x = -0.7;
+
+	group.add( obj );
+}
+
+function CreateBackground(width,blockwidth,n_meters,n_hours, highest) {
+	var geometry 	= new THREE.CubeGeometry( 1, 1, 1 );
+	var mergedA 	= new THREE.Geometry();
+	//var material 	= new THREE.MeshBasicMaterial( { color: '#114477', alpha: 0.3 } );
+	//var mesh		= new THREE.Mesh( geometry, material );
+
+	// back board axis
+	var fullheight = 200;		// pixels
+	var units = 15;
+	var scale = fullheight/highest;
+	while( (highest*scale) > fullheight ) {
+		scale = scale * 0.90;
+	}
+	var height = (fullheight / units);			// height of each segment
+	for( var n=0; n < units; n++ )
+	{
+		var rgb = 0;//n%2) ? (0x114477) : (0x1122CC);
+		var v = (n%2) ? 0.6 : 0.8;
+		var Color = HSVToRGB( 0.666, 1.0, v - (n/30) );
+		rgb = (((Color[0]*255)&0xFF) << 16) | (((Color[1]*255)&0xFF) << 8) | ((Color[2]*255) & 0xFF);
+
+		var material	= new THREE.MeshBasicMaterial( { color: rgb, opacity: 0.4, _emissive: (n%2) ? 0x000055 : 0x000033, transparent: .3 } );
+		var mesh		= new THREE.Mesh( geometry, material );
+
+		// Back Wall
+		mesh.position.x = -(blockwidth/2);
+		mesh.position.y = (n*(height)) + (height/2);
+		mesh.position.z = -( (1+n_meters) * (blockwidth/2) );
+		mesh.scale.x    = width*2;
+		mesh.scale.z    = 0.2;
+		mesh.scale.y    = (height);
+		mesh.updateMatrix();
+		group.add( mesh );
+
+		//group.add( AddText( (n*10), -width+8, mesh.position.y - (height/2), mesh.position.z, 0,0, (0.2), 0xFFFFFF ) );
+		//group.add( AddText( (n*10), width-blockwidth, mesh.position.y - (height/2), mesh.position.z, 0,0, (0.2), 0xFFFFFF ) );
+
+		// Left Wall
+		mesh			= new THREE.Mesh( geometry, material );
+		mesh.matrixAutoUpdate = false;
+		mesh.position.x = -width -( blockwidth/2 );
+		mesh.position.y = (n*(height)) + (height/2);
+		mesh.position.z = 0;
+		mesh.scale.x    = 0.2;
+		mesh.scale.z    = (1+n_meters)*blockwidth;
+		mesh.scale.y    = (height);
+		mesh.updateMatrix();
+		group.add( mesh );
+	}
+
+	var x = -width-(blockwidth/2), y = 0, z = (1+n_meters)*blockwidth;
+	CreateRuler(x,y,z,width,blockwidth,n_meters,n_hours);
+
+	for( var n=0; n <= units; n++ ){
+		group.add( AddText( Math.floor(1000*n*(highest/units))+" W", -width-18, (n*(height)) + (height/2) - (height/2), +( (1+n_meters) * (blockwidth/2) ), 0,0, (0.2), 0xFFFFFF ) );
+	}
+
+	group.add( AddText( "Time",   0,        260, -( (1+n_meters) * (blockwidth/2) ), 0,0 ) );
+	group.add( AddText( "Date", -width/1.5, 260, 150,    0,90/180 * (Math.PI) ) );
+
+	return scale;		// return the scaling factor
+}
+
+
+function CreateBlockMatrix(meter_data, doMerge, generated, material_props ) {
+	var geometry 	= new THREE.CubeGeometry( 1, 1, 1 );
+	var material 	= new THREE.MeshNormalMaterial();
+	var mesh		= new THREE.Mesh( geometry, material );
+
+    var width = 430.0;
+    var n_meters 	= meter_data.data.length;
+    var n_hours 	= meter_data.data[0].length;
+    var totaldays   = meter_data.total_days || 7;
+    var blockWidth  = (width)/(totaldays*24.0) * 1.00;
+    var blockStep   = (width)/(totaldays*24.0);
+    var height, ys;
+    var time = 0.0;
+
+   	var greyColor 	= { r: 0.1, g: 0.1, b: 0.1 };
+   	var Color 		= { r: 0.1, g: 0.1, b: 0.1 };
+
+	blockStep = (width*2)/(n_hours);
+	blockWidth = blockStep * 1.00;
+
+	if( material_props == undefined ) {
+		material_props = { color: 0, shading: THREE.FlatShading, map: null };
+	}
+
+	var scale = CreateBackground(width, blockWidth, n_meters, n_hours, meter_data.highest || 50 );
+	log("Highest value is " + meter_data.highest + " n_meters="+n_meters + " n_hours="+n_hours + " scale="+scale );
+
+    var x = -width, values, meter;
+    for (var hr_pos = 0; hr_pos < n_hours; hr_pos++ )
+    {
+    	var count = n_meters;
+        var z = (n_meters*blockStep/2), tot;
+        for (var m_pos = 0; m_pos < n_meters+1; z -= (blockStep*1.00), m_pos++ )
+        {
+        	count--;
+        	meter = meter_data.data[m_pos];
+        	if( meter != undefined ) {
+				values = meter[hr_pos];
+				if( values == undefined ) {
+					values = [0,0,0];
+				}
+			} else {
+				values = [0,0,0];
+			}
+			ys = 0;
+			if( values.length == 1 ) {
+				tot = values[0];
+				var h = .6666 - ((tot/meter_data.highest)*.6666);
+				//if( h < 0 ) { h = 0; }
+				values = HSVToRGB( h, 1, 0.7+((tot/meter_data.highest)*0.3) );
+				//log("kwh="+tot+" h="+h+",   tot/highest="+(tot/meter_data.highest) );
+			} else {
+				tot = (values[0] + values[1] + values[2]);
+			}
+			
+        	if( tot == 0 ) {
+        		var t = 0.10 + ((hr_pos&1)*0.02) + ((m_pos&1)*0.02);
+				Color = { r: t, g: t, b: t };
+			} else {
+				ys = tot * scale;
+				//Color = { r: ((values[0]/tot)), g: ((values[1]/tot)), b: ( (values[2]/tot)) };
+				Color = { r: values[0], g: values[1], b: values[2] };
+			}
+			ys += 0.5;
+        	//log("Doing hr pos " + hr_pos + " m_pos = " + m_pos + " ys="+ys );
+
+			var name = meter_data.labels[m_pos] + "_hour_" + hr_pos;
+			if( !doMerge ) {
+				var rgb = (((Color.r*255)&0xFF) << 16) | (((Color.g*255)&0xFF) << 8) | ((Color.b*255) & 0xFF);
+				material_props.color = rgb;
+				material_props.shininess = 3.5;
+				material_props.specular = 0x224466;
+				material		= new THREE.MeshPhongMaterial( material_props );
+				mesh			= new THREE.Mesh( geometry, material );
+			}
+
+			mesh.name = name;
+			mesh.position.x = x;
+			mesh.position.y = ys/2;		//ys*5;
+			mesh.position.z = z;
+			mesh.scale.x = blockWidth;
+			mesh.scale.y = ys;
+			mesh.scale.z = blockWidth;
+
+			if( doMerge ){
+				THREE.GeometryUtils.merge(mergedGeo, mesh);
+			} else {
+				mesh.matrixAutoUpdate = false;
+				mesh.updateMatrix();
+				group.add( mesh );
+			}
+			objects.push( mesh );
+        }
+    	x += blockStep;
+	}
+
+	if( n_meters >1 ){
+		if( doMerge ){
+			mergedGeo.computeFaceNormals();
+			group = new THREE.Mesh( mergedGeo, material );
+			group.matrixAutoUpdate = false;
+			group.updateMatrix();
+		}
+		scene.add( group );
+    }
+	return n_meters;
+}
+
+
+function Init_Scene(meter_data)
+{
+	scene = new THREE.Scene();
+	scene.fog = new THREE.Fog( 0x000000, 250, 1400 );
+	var w = $("#container").width();
+	var h = $("#container").height() * .66;
+
+	if( fullscreen == 1 ) {
+		w = fullscreen_w;
+		h = fullscreen_h;
+	}
+	log( "Init Scene, w="+w + " h="+h );
+	camera = new THREE.PerspectiveCamera( 60, w / h, 1, 10000 );
+	camera.position.z = 500;
+	camera.position.y = 50;
+	scene.add( camera );
+
+	// LIGHTS
+	var dirLight = new THREE.DirectionalLight( 0xffffff, 0.125 );
+	dirLight.position.set( 0, 0, 1 ).normalize();
+	scene.add( dirLight );
+
+	var pointLight = new THREE.PointLight( 0xffffff, 1.5 );
+	pointLight.position.set( 0, 100, 90 );
+	scene.add( pointLight );
+
+	pointLight = new THREE.PointLight( 0xffffff, 1.5 );
+	pointLight.position.set( 0, 300, 590 );
+	scene.add( pointLight );
+
+
+	faceMaterial = new THREE.MeshFaceMaterial();
+	textMaterialFront = new THREE.MeshPhongMaterial( { color: 0xffff00, shading: THREE.FlatShading } );
+    textMaterialSide = new THREE.MeshPhongMaterial( { color: 0x335577, shading: THREE.SmoothShading } );
+
+	var doMerge	= false;
+	group 		= new THREE.Object3D();
+	mergedGeo	= new THREE.Geometry();
+
+	var material_props = { color: 0, shading: THREE.FlatShading };
+	if( mergemeters ) { material_props.opacity = 0.55; }
+	CreateBlockMatrix(meter_data, doMerge, 0, material_props);
+	//demoCubes();
+
+	var plane = new THREE.Mesh( new THREE.PlaneGeometry( 10000, 10000 ), new THREE.MeshPhongMaterial( { color: 0xFFFFFF, opacity: 0.50, transparent: true, _shading: THREE.SmoothShading } ) );
+	plane.position.y = -55;
+	plane.rotation.x = - Math.PI / 2;
+	scene.add( plane );
+
+	projector = new THREE.Projector();
+
+	try {
+		log("Using 3d WebGL renderer");
+		renderer = new THREE.WebGLRenderer();
+	} catch(err)
+	{
+		log("error - " + err.toString() );
+		log("Using 3d canvas renderer");
+		renderer =  new THREE.CanvasRenderer();
+		canvas_renderer = true;
+	}
+
+	if( renderer )
+	{
+		//renderer.setSize( window.innerWidth, window.innerHeight );
+		renderer.setSize( w, h );
+		renderer.setClearColor( scene.fog.color, 1 );
+		renderer.sortObjects = false;
+		$("#content").append( renderer.domElement );
+	}
+	newInput = true;
+}
+
+var init_frames = 5;
+function animate() {
+
+	// note: three.js includes requestAnimationFrame shim
+	///if( this.isActive )
+	requestAnimationFrame( animate );
+	if (newInput || dragging || newInputXY || zoomDelta || init_frames>0 )
+	{
+		render_view();
+		if( init_frames>0 ) init_frames--;
+	}
+}
+
+function render_view() {
+
+	if( zoomDelta != 0 ) {
+		camera_z -= (zoomDelta*25);
+		zoomDelta = 0;
+		newInput = true;
+	}
+
+	if( newInputXY )
+	{
+		newInputXY = false;
+		camera_x += (Xoffset*1.00);
+		camera_y -= (Yoffset*1.00);
+		group.position.x += (Xoffset*241.0);
+		group.position.y -= (Yoffset*241.0);
+	}
+
+	if (newInput) {
+		camera.position.x = Math.cos(yaw) * Math.cos(pitch) * camera_z;
+		camera.position.z = Math.sin(yaw) * Math.cos(pitch) * camera_z;
+		camera.position.y = Math.sin(pitch) * camera_z;
+		camera.lookAt( scene.position );
+		newInput = false;
+	}
+	renderer.render( scene, camera );
+}
+
+function render() {
+	var rx = Math.sin( new Date().getTime() * 0.0007 ) * 0.5;
+	var ry = Math.sin( new Date().getTime() * 0.0003 ) * 0.5;
+	var rz = Math.sin( new Date().getTime() * 0.0002 ) * 0.5;
+
+	if (newInput) {
+		group.rotation.y = yaw;
+		group.rotation.x = pitch;
+		newInput = false;
+	}
+
+	if( newInputXY )
+	{
+		group.position.x += (Xoffset*250);
+		group.position.y -= (Yoffset*250);
+		newInputXY = false;
+	}
+
+	if( zoomDelta != 0 ) {
+		camera.position.z -= (zoomDelta*20);
+		zoomDelta = 0;
+	}
+
+	renderer.render( scene, camera );
+}
+
+
+// -----------------------------------------------  generic function helpers ------------------------------------------------------
+
+var canvas = document.getElementById("theCanvas");
+
+function Lz(n) { return (n > 9 ? n : '0' + n); }
+function HMS(d) { return Lz(parseInt(d/3600)) + ":" + Lz(parseInt(d/60)%60) + ":" + Lz(d%60); }
+
+function localtimeHMS(time_val) {
+	var dt = time_val ? new Date(time_val) : new Date();
+	return Lz( dt.getHours() ) + ":" + Lz( dt.getMinutes() ) + ":" + Lz( dt.getSeconds() );
+}
+
+function localtimeYMD(time_val) {
+	var dt = time_val ? new Date(time_val) : new Date();
+	return Lz( 1900+dt.getYear() ) + "-" + Lz( dt.getMonth()+1 ) + "-" + Lz( dt.getDate() );
+}
+
+function clickCoordsWithinElement(event) {
+    var coords = { x: 0, y: 0};
+    if (!event) {
+        event = window.event;
+        coords.x = event.x;
+        coords.y = event.y;
+    } else {
+        var element = event.target ;
+        var totalOffsetLeft = 0;
+        var totalOffsetTop = 0 ;
+
+        while (element.offsetParent)
+        {
+            totalOffsetLeft += element.offsetLeft;
+            totalOffsetTop += element.offsetTop;
+            element = element.offsetParent;
+        }
+        coords.x = event.pageX - totalOffsetLeft;
+        coords.y = event.pageY - totalOffsetTop;
+    }
+    return coords;
+}
+
+var downX;
+var downY;
+
+function mouseDown(event) {
+    downX = lastX = event.clientX;
+    downY = lastY = event.clientY;
+    dragging = true;
+	$("#meterinfo").hide();
+}
+
+function mouseUp(event)
+{
+	event.preventDefault();
+    dragging = false;
+
+    if( downX == event.clientX && downY == event.clientY )
+    {
+		var w = $("#container").width();
+		var h = $("#container").height() * .66;
+		if( fullscreen == 1 ) {
+			w = fullscreen_w;
+			h = fullscreen_h;
+		}
+
+		var coords = clickCoordsWithinElement(event);
+		log("coords xy = " + coords.x + "," + coords.y + " from wh " + w + "," + h );
+
+		var x = ( coords.x / w ) * 2 - 1;
+		var y = - ( coords.y / h ) * 2 + 1;
+
+		//log("vector xy = " + x + "," + y );
+
+		var vector = new THREE.Vector3( x, y, 0.5 );
+		if( projector != undefined ) projector.unprojectVector( vector, camera );
+		if( ! vector || vector.subSelf == undefined ) { return; }
+		var ray = new THREE.Ray( camera.position, vector.subSelf( camera.position ).normalize() );
+		var intersects = ray.intersectObjects( objects );
+		var name;
+		if ( intersects.length > 0 )
+		{
+			//intersects[ 0 ].object.material.color.setHex( 0xffffff );
+			name = intersects[ 0 ].object.name;
+			log("Found intersect of " + name );
+		}
+	}
+}
+
+function mouseWheel(event) {
+    var delta = 0;
+    if (!event) event = window.event;
+    if (event.wheelDelta) {
+        delta = event.wheelDelta / 120;
+        if (window.opera) delta = -delta;
+    } else if (event.detail) {
+        delta = -event.detail / 3;
+    }
+    if (delta) {
+    	eye.z += (delta * 50.5);
+    	zoomDelta = delta;
+    }
+    event.returnValue = false;
+}
+
+
+function mouseMove(event) {
+    if (dragging)
+    {
+    	var scale = 0.01;
+    	if (event.shiftKey)
+    	{
+			eye.z += (event.clientY - lastY) * 10.5;
+		} else
+		if (event.ctrlKey)
+		{
+			Xoffset = (event.clientX - lastX) * scale;
+			Yoffset = (event.clientY - lastY) * scale;
+			newInputXY = true;
+		} else
+		{
+			yaw   += (event.clientX - lastX) * scale;
+			pitch += (event.clientY - lastY) * scale;
+		}
+
+        mouseX = lastX = event.clientX;
+        mouseY = lastY = event.clientY;
+
+        newInput = true;
+    }
+}
+
+$(".left-arrow").click( function(e) {
+	yaw += -0.1;
+	newInput = true;
+} );
+
+$(".left-arrow").on( { 'touchstart' : function(e){ 
+	yaw += -0.1;
+	newInput = true;
+} } );
+
+$(".right-arrow").click( function(e) {
+	yaw += 0.1;
+	newInput = true;
+} );
+
+$(".right-arrow").on( { 'touchstart' : function(e){ 
+	yaw += 0.1;
+	newInput = true;
+} } );
+
+
+function onkeyInput(event) {
+ 	var chCode = event.keyCode;
+ 	log("got key " + chCode );
+	if( chCode == 219 ) {
+		UpdateScene( -1 );
+	} else
+	if( chCode == 221 ) {
+		UpdateScene( 1 );
+	}
+}
+
+var object = document.getElementById("container");
+if ( $.browser && ! $.browser.msie  ) {
+	object.addEventListener('mousedown', mouseDown, true);
+	object.addEventListener('mousemove', mouseMove, true);
+	object.addEventListener('mouseup', mouseUp, true);
+	object.addEventListener('mousewheel', mouseWheel, true);
+	object.addEventListener('DOMMouseScroll', mouseWheel, true);
+}
+
+$(object).on({ 'touchstart' : function(e){ 
+	e.preventDefault();
+    var touch = e.touches[0];
+	var event = { clientX: touch.pageX, clientY: touch.pageY };
+	mouseDown(event);
+} });
+
+$(object).on({ 'touchmove' : function(e){ 
+	e.preventDefault();
+    var touch = e.touches[0];
+	e.clientX = touch.pageX;
+	e.clientY = touch.pageY;
+	mouseMove(e);
+} });
+
+$(object).on({ 'touchend' : function(e){ 
+	e.preventDefault();
+    var touch = e.touches[0];
+	e.clientX = touch.pageX;
+	e.clientY = touch.pageY;
+	mouseUp(e);
+} });
+
+//document.addEventListener('keyup', onkeyInput, false);
+
+var time = 0;
+
+/* Start the scene rendering */
+function Start_scene()
+{
+	animate();
+}
+
+//
+// Update Scene with new data.
+//
+function UpdateScene( offset )
+{
+	var curDate = new Date( todate );
+	var newDate = curDate.getTime() + (offset*86400*1000);
+	todate = localtimeYMD( newDate );
+	$("#date").val( todate );
+
+	var urlString = "http://lumo.com.au/getnewdata?nmi=" + urlParams['serial'] + "&days="+days;
+	if( todate != undefined ) {
+		urlString += "&date="+todate;
+	}
+
+	$.ajax({
+		url : urlString,
+		data : "{}",
+		type: "post",
+		dataType: "json",
+		success: function( data ) {
+			log("Got ajax response");
+			UpdateSceneData( data );
+		}
+	});
+}
+
+function UpdateSceneData( data )
+{
+	log("Do UpdateSceneData....");
+}
+
+
+function GotData( data )
+{
+	Init_Scene( data );
+	Start_scene();
+}
+
+
+function SetStatus(text)
+{
+	$("#status").text(text);
+}
+
+/*
+INPUT = 
+NMI,IntervalReadDate,MeterSerialNo,EnergyDirection,UOM,RegisterID,ControlledLoad,0:15,T1,0:30,T2,0:45,T3,1:00,T4,1:15,T5,1:30,T6,1:45,T7,2:00,T8,2:15,T9,2:30,T10,2:45,T11,3:00,T12,3:15,T13,3:30,T14,3:45,T15,4:00,T16,4:15,T17,4:30,T18,4:45,T19,5:00,T20,5:15,T21,5:30,T22,5:45,T23,6:00,T24,6:15,T25,6:30,T26,6:45,T27,7:00,T28,7:15,T29,7:30,T30,7:45,T31,8:00,T32,8:15,T33,8:30,T34,8:45,T35,9:00,T36,9:15,T37,9:30,T38,9:45,T39,10:00,T40,10:15,T41,10:30,T42,10:45,T43,11:00,T44,11:15,T45,11:30,T46,11:45,T47,12:00,T48,12:15,T49,12:30,T50,12:45,T51,13:00,T52,13:15,T53,13:30,T54,13:45,T55,14:00,T56,14:15,T57,14:30,T58,14:45,T59,15:00,T60,15:15,T61,15:30,T62,15:45,T63,16:00,T64,16:15,T65,16:30,T66,16:45,T67,17:00,T68,17:15,T69,17:30,T70,17:45,T71,18:00,T72,18:15,T73,18:30,T74,18:45,T75,19:00,T76,19:15,T77,19:30,T78,19:45,T79,20:00,T80,20:15,T81,20:30,T82,20:45,T83,21:00,T84,21:15,T85,21:30,T86,21:45,T87,22:00,T88,22:15,T89,22:30,T90,22:45,T91,23:00,T92,23:15,T93,23:30,T94,23:45,T95,0:00,T96
+61027693288,30/Mar/2013,A9608012,E,KWH,E1,N,0.0,A,0.4620,A,0.0,A,0.4510,A,0.0,A,0.4490,A,0.0,A,0.4450,A,0.0,A,0.4440,A,0.0,A,0.4730,A,0.0,A,0.4170,A,0.0,A,0.4630,A,0.0,A,0.4630,A,0.0,A,0.4100,A,0.0,A,0.5210,A,0.0,A,0.4560,A,0.0,A,0.4760,A,0.0,A,0.4340,A,0.0,A,0.4670,A,0.0,A,0.4660,A,0.0,A,0.4870,A,0.0,A,0.4710,A,0.0,A,0.4950,A,0.0,A,0.4480,A,0.0,A,0.9660,A,0.0,A,0.4630,A,0.0,A,0.5050,A,0.0,A,0.4710,A,0.0,A,0.4760,A,0.0,A,0.4100,A,0.0,A,0.3850,A,0.0,A,0.3820,A,0.0,A,0.3420,A,0.0,A,0.3900,A,0.0,A,0.3530,A,0.0,A,0.3500,A,0.0,A,0.3830,A,0.0,A,0.3210,A,0.0,A,0.3320,A,0.0,A,0.3300,A,0.0,A,0.3700,A,0.0,A,0.4410,A,0.0,A,0.4620,A,0.0,A,0.4660,A,0.0,A,0.4370,A,0.0,A,0.5060,A,0.0,A,0.4700,A,0.0,A,0.4350,A,0.0,A,0.4340,A,0.0,A,0.4330,A,0.0,A,0.4090,A,0.0,A,0.4200,A
+OUTPUT = [r,g,b]
+*/
+function Convert_Lumo_To_Matrix( csvdata, date1, date2 )
+{
+	var rows = csvdata.split( /\r\n|\n|\r/ );
+	var names = rows[0].split(",");
+	var namesmap = {};
+	for( var n in names ) {
+		namesmap[ names[n] ] = n;
+	}
+	var matrix = { "fromdate": localtimeYMD(date1), "data":[] , "labels":[], highest: 0 };
+	var max = 30, first = rows.length - max, di = 0;
+	for( var i = rows.length-2; (i>0 && i>first); i-- )
+	{
+		if( i>0 )
+		{
+			var row = rows[i];
+			var item = row.split(",");
+			var data = {};
+			var history = new Array();
+			var pos = 0;
+			for( var n in item ) {
+				var name = names[n];
+				if( di == 0 )
+				{
+					if( name == 'MeterSerialNo' ) {
+						matrix.serial = item[n];
+					}
+				}
+				if( name == 'IntervalReadDate' ) {
+					matrix.labels.push( item[n] );
+				}
+				if( i > 0 && name.match(/:00|:30/) ) 
+				{
+					var kwh = parseFloat( item[n] );
+					history[pos++] = [ kwh ];
+					if( kwh > matrix.highest ) {
+						matrix.highest = kwh;
+					}
+				}
+			}
+			//log("adding data points count " + history.length + " history="+history );
+			if( i>0 ){
+				matrix.data[di] = history;
+				di++;
+			}
+		}
+	}
+
+	if( matrix.data.length == 0 )
+	{
+		matrix.data = [[0,5,0]];
+		matrix.labels = [ 'none' ];
+	}
+
+	return matrix;
+}
+
+
+
+
+function LoadFile( filename, CALLBACK )
+{
+	if (window.File && window.FileReader && window.FileList && window.Blob) 
+	{
+
+		var reader = new FileReader();
+		// Closure to capture the file information.
+		reader.onload = function(e) {
+			CALLBACK(e.target.result);
+		};
+
+		// Read in the image file as a data URL.
+		reader.readAsText(filename);
+	}
+}
+
+/**
+ * Get the value of a cookie with the given name.
+ *
+ * @example $.cookie('the_cookie');
+ * @desc Get the value of a cookie.
+ *
+ * @param String name The name of the cookie.
+ * @return The value of the cookie.
+ * @type String
+ *
+ * @name $.cookie
+ * @cat Plugins/Cookie
+ * @author Klaus Hartl/klaus.hartl@stilbuero.de
+ */
+function cookie(name, value, options) {
+	if (typeof value != 'undefined') { // name and value given, set cookie
+		options = options || {};
+		if (value === null) {
+			value = '';
+			options.expires = -1;
+		}
+		var expires = '';
+		if (options.expires && (typeof options.expires == 'number' || options.expires.toUTCString)) {
+			var date;
+			if (typeof options.expires == 'number') {
+				date = new Date();
+				date.setTime(date.getTime() + (options.expires * 24 * 60 * 60 * 1000));
+			} else {
+				date = options.expires;
+			}
+			expires = '; expires=' + date.toUTCString(); // use expires attribute, max-age is not supported by IE
+		}
+		var path = options.path ? '; path=' + options.path : '';
+		var domain = options.domain ? '; domain=' + options.domain : '';
+		var secure = options.secure ? '; secure' : '';
+		document.cookie = [name, '=', encodeURIComponent(value), expires, path, domain, secure].join('');
+	} else { // only name given, get cookie
+		var cookieValue = null;
+		if (document.cookie && document.cookie != '') {
+			var cookies = document.cookie.split(';');
+			for (var i = 0; i < cookies.length; i++) {
+				var cookie = jQuery.trim(cookies[i]);
+				// Does this cookie string begin with the name we want?
+				if (cookie.substring(0, name.length + 1) == (name + '=')) {
+					cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+					break;
+				}
+			}
+		}
+		return cookieValue;
+	}
+}
+
+
+
+
+// ------------------------------------------------------------------------------------------------------------------------
+window.isActive = true;
+$(window).focus(function() { this.isActive = true; });
+$(window).blur(function() { this.isActive = false; });
+
+
+var urlParams = getParameters();
+var days 			= urlParams['days'] || 30;
+var startdate 		= urlParams['startdate'];
+var todate 			= urlParams['date'] || localtimeYMD();
+var serial			= urlParams['serial'];
+var mergemeters		= urlParams['merge'];
+
+if( startdate != undefined ) { startdate = startdate.replace("+"," "); }
+if( todate != undefined ) { todate = todate.replace("+"," "); }
+
+var toDate = new Date( todate );
+var fromDate = new Date( toDate.getTime() - ((days-1)*86400*1000) );
+startdate = localtimeYMD( fromDate );
+
+if( todate != undefined ) {
+	$("#header-text").text(  $("#header-text").text() + " from " + startdate + " to " + todate );
+}
+
+if( urlParams['serial'] != undefined ) {
+	$("#header-text").text(  $("#header-text").text() + " , Serial : " + urlParams['serial'] );
+}
+
+var urlString = "api.drive.google.com/openfile=";
+
+if( urlParams['fullscreen'] == 1 ) {
+	gofull();
+}
+
+local = 0;
+
+/*
+NMI,IntervalReadDate,MeterSerialNo,EnergyDirection,UOM,RegisterID,ControlledLoad,0:15,T1,0:30,T2,0:45,T3,1:00,T4,1:15,T5,1:30,T6,1:45,T7,2:00,T8,2:15,T9,2:30,T10,2:45,T11,3:00,T12,3:15,T13,3:30,T14,3:45,T15,4:00,T16,4:15,T17,4:30,T18,4:45,T19,5:00,T20,5:15,T21,5:30,T22,5:45,T23,6:00,T24,6:15,T25,6:30,T26,6:45,T27,7:00,T28,7:15,T29,7:30,T30,7:45,T31,8:00,T32,8:15,T33,8:30,T34,8:45,T35,9:00,T36,9:15,T37,9:30,T38,9:45,T39,10:00,T40,10:15,T41,10:30,T42,10:45,T43,11:00,T44,11:15,T45,11:30,T46,11:45,T47,12:00,T48,12:15,T49,12:30,T50,12:45,T51,13:00,T52,13:15,T53,13:30,T54,13:45,T55,14:00,T56,14:15,T57,14:30,T58,14:45,T59,15:00,T60,15:15,T61,15:30,T62,15:45,T63,16:00,T64,16:15,T65,16:30,T66,16:45,T67,17:00,T68,17:15,T69,17:30,T70,17:45,T71,18:00,T72,18:15,T73,18:30,T74,18:45,T75,19:00,T76,19:15,T77,19:30,T78,19:45,T79,20:00,T80,20:15,T81,20:30,T82,20:45,T83,21:00,T84,21:15,T85,21:30,T86,21:45,T87,22:00,T88,22:15,T89,22:30,T90,22:45,T91,23:00,T92,23:15,T93,23:30,T94,23:45,T95,0:00,T96
+61027693288,30/Mar/2013,A9608012,E,KWH,E1,N,0.0,A,0.4620,A,0.0,A,0.4510,A,0.0,A,0.4490,A,0.0,A,0.4450,A,0.0,A,0.4440,A,0.0,A,0.4730,A,0.0,A,0.4170,A,0.0,A,0.4630,A,0.0,A,0.4630,A,0.0,A,0.4100,A,0.0,A,0.5210,A,0.0,A,0.4560,A,0.0,A,0.4760,A,0.0,A,0.4340,A,0.0,A,0.4670,A,0.0,A,0.4660,A,0.0,A,0.4870,A,0.0,A,0.4710,A,0.0,A,0.4950,A,0.0,A,0.4480,A,0.0,A,0.9660,A,0.0,A,0.4630,A,0.0,A,0.5050,A,0.0,A,0.4710,A,0.0,A,0.4760,A,0.0,A,0.4100,A,0.0,A,0.3850,A,0.0,A,0.3820,A,0.0,A,0.3420,A,0.0,A,0.3900,A,0.0,A,0.3530,A,0.0,A,0.3500,A,0.0,A,0.3830,A,0.0,A,0.3210,A,0.0,A,0.3320,A,0.0,A,0.3300,A,0.0,A,0.3700,A,0.0,A,0.4410,A,0.0,A,0.4620,A,0.0,A,0.4660,A,0.0,A,0.4370,A,0.0,A,0.5060,A,0.0,A,0.4700,A,0.0,A,0.4350,A,0.0,A,0.4340,A,0.0,A,0.4330,A,0.0,A,0.4090,A,0.0,A,0.4200,A
+61027693288,31/Mar/2013,A9608012,E,KWH,E1,N,0.0,A,0.6510,A,0.0,A,1.1060,A,0.0,A,1.1390,A,0.0,A,1.1290,A,0.0,A,1.1160,A,0.0,A,1.0660,A,0.0,A,0.6200,A,0.0,A,0.4230,A,0.0,A,0.3850,A,0.0,A,0.4590,A,0.0,A,0.4530,A,0.0,A,0.4230,A,0.0,A,0.4160,A,0.0,A,0.4220,A,0.0,A,0.3970,A,0.0,A,0.3980,A,0.0,A,0.3540,A,0.0,A,0.4100,A,0.0,A,0.3700,A,0.0,A,0.3910,A,0.0,A,0.4670,A,0.0,A,0.4070,A,0.0,A,0.4830,A,0.0,A,0.3670,A,0.0,A,0.3190,A,0.0,A,0.3600,A,0.0,A,0.3700,A,0.0,A,0.3440,A,0.0,A,0.3750,A,0.0,A,0.3820,A,0.0,A,0.3470,A,0.0,A,0.3260,A,0.0,A,0.3640,A,0.0,A,0.3160,A,0.0,A,0.3410,A,0.0,A,0.3500,A,0.0,A,0.3150,A,0.0,A,0.3540,A,0.0,A,0.4310,A,0.0,A,0.4630,A,0.0,A,0.4390,A,0.0,A,0.4600,A,0.0,A,0.4610,A,0.0,A,0.4130,A,0.0,A,0.4730,A,0.0,A,0.4240,A,0.0,A,0.4410,A,0.0,A,0.4290,A
+61027693288,01/Apr/2013,A9608012,E,KWH,E1,N,0.0,A,0.4010,A,0.0,A,0.4170,A,0.0,A,0.3990,A,0.0,A,0.4150,A,0.0,A,0.3690,A,0.0,A,0.4040,A,0.0,A,0.3930,A,0.0,A,0.3220,A,0.0,A,0.3520,A,0.0,A,0.3540,A,0.0,A,0.3570,A,0.0,A,0.3230,A,0.0,A,0.2820,A,0.0,A,0.3270,A,0.0,A,0.2770,A,0.0,A,0.3070,A,0.0,A,0.3350,A,0.0,A,0.4090,A,0.0,A,0.3380,A,0.0,A,0.3740,A,0.0,A,0.4110,A,0.0,A,0.3580,A,0.0,A,0.4170,A,0.0,A,0.4110,A,0.0,A,0.4590,A,0.0,A,0.4940,A,0.0,A,0.8650,A,0.0,A,0.3250,A,0.0,A,0.3160,A,0.0,A,0.3120,A,0.0,A,0.3090,A,0.0,A,0.2940,A,0.0,A,0.3340,A,0.0,A,0.2930,A,0.0,A,0.3040,A,0.0,A,0.3340,A,0.0,A,0.3010,A,0.0,A,0.4440,A,0.0,A,0.4460,A,0.0,A,0.4690,A,0.0,A,0.4370,A,0.0,A,0.4920,A,0.0,A,0.4570,A,0.0,A,0.4680,A,0.0,A,0.4310,A,0.0,A,0.4540,A,0.0,A,0.4110,A,0.0,A,0.4680,A
+61027693288,02/Apr/2013,A9608012,E,KWH,E1,N,0.0,A,0.4150,A,0.0,A,0.4260,A,0.0,A,0.3060,A,0.0,A,0.2850,A,0.0,A,0.3000,A,0.0,A,0.2840,A,0.0,A,0.2200,A,0.0,A,0.0520,A,0.0,A,0.0780,A,0.0,A,0.0860,A,0.0,A,0.1090,A,0.0,A,0.1910,A,0.0,A,0.1810,A,0.0,A,0.1910,A,0.0,A,0.0750,A,0.0,A,0.0560,A,0.0,A,0.0700,A,0.0,A,0.0350,A,0.0,A,0.0680,A,0.0,A,0.0560,A,0.0,A,0.0410,A,0.0,A,0.0670,A,0.0,A,0.0480,A,0.0,A,0.0470,A,0.0,A,0.0650,A,0.0,A,0.0430,A,0.0,A,0.0510,A,0.0,A,0.0640,A,0.0,A,0.0400,A,0.0,A,0.0530,A,0.0,A,0.0650,A,0.0,A,0.0370,A,0.0,A,0.0570,A,0.0,A,0.0630,A,0.0,A,0.0350,A,0.0,A,0.0580,A,0.0,A,0.0630,A,0.0,A,0.0330,A,0.0,A,0.0590,A,0.0,A,0.0620,A,0.0,A,0.1040,A,0.0,A,0.2470,A,0.0,A,0.2510,A,0.0,A,0.6010,A,0.0,A,0.3170,A,0.0,A,0.3260,A,0.0,A,0.3130,A,0.0,A,0.2990,A
+61027693288,03/Apr/2013,A9608012,E,KWH,E1,N,0.0,A,0.3220,A,0.0,A,0.2780,A,0.0,A,0.2750,A,0.0,A,0.2970,A,0.0,A,0.2780,A,0.0,A,0.2650,A,0.0,A,0.2480,A,0.0,A,0.2670,A,0.0,A,0.2470,A,0.0,A,0.2260,A,0.0,A,0.1870,A,0.0,A,0.2420,A,0.0,A,0.2380,A,0.0,A,0.2280,A,0.0,A,0.2510,A,0.0,A,0.1190,A,0.0,A,0.1510,A,0.0,A,0.1540,A,0.0,A,0.1090,A,0.0,A,0.1660,A,0.0,A,0.1300,A,0.0,A,0.1320,A,0.0,A,0.1690,A,0.0,A,0.1080,A,0.0,A,0.1540,A,0.0,A,0.1520,A,0.0,A,0.1160,A,0.0,A,0.1670,A,0.0,A,0.1330,A,0.0,A,0.1600,A,0.0,A,0.1630,A,0.0,A,0.1820,A,0.0,A,0.1600,A,0.0,A,0.1820,A,0.0,A,0.1300,A,0.0,A,0.1460,A,0.0,A,0.1480,A,0.0,A,0.1400,A,0.0,A,0.1380,A,0.0,A,0.1370,A,0.0,A,0.1490,A,0.0,A,0.1440,A,0.0,A,0.2730,A,0.0,A,0.2480,A,0.0,A,0.2410,A,0.0,A,0.3240,A,0.0,A,0.2150,A,0.0,A,0.2450,A
+61027693288,04/Apr/2013,A9608012,E,KWH,E1,N,0.0,A,0.2390,A,0.0,A,0.1940,A,0.0,A,0.2530,A,0.0,A,0.2150,A,0.0,A,0.2130,A,0.0,A,0.2460,A,0.0,A,0.2010,A,0.0,A,0.1750,A,0.0,A,0.1500,A,0.0,A,0.1370,A,0.0,A,0.2210,A,0.0,A,0.2760,A,0.0,A,0.3520,A,0.0,A,0.3570,A,0.0,A,0.4180,A,0.0,A,0.3700,A,0.0,A,0.2870,A,0.0,A,0.2540,A,0.0,A,0.2730,A,0.0,A,0.2420,A,0.0,A,0.2320,A,0.0,A,0.2630,A,0.0,A,0.2330,A,0.0,A,0.2500,A,0.0,A,0.2350,A,0.0,A,0.2480,A,0.0,A,0.2400,A,0.0,A,0.2390,A,0.0,A,0.2500,A,0.0,A,0.2210,A,0.0,A,0.2530,A,0.0,A,0.2470,A,0.0,A,0.2120,A,0.0,A,0.2680,A,0.0,A,0.2290,A,0.0,A,0.2270,A,0.0,A,0.2640,A,0.0,A,0.2210,A,0.0,A,0.2350,A,0.0,A,0.2510,A,0.0,A,0.2300,A,0.0,A,0.3120,A,0.0,A,0.3360,A,0.0,A,0.3490,A,0.0,A,0.3620,A,0.0,A,0.3630,A,0.0,A,0.4020,A,0.0,A,0.3920,A
+61027693288,05/Apr/2013,A9608012,E,KWH,E1,N,0.0,A,0.3880,A,0.0,A,0.4070,A,0.0,A,0.3850,A,0.0,A,0.3630,A,0.0,A,0.3400,A,0.0,A,0.2850,A,0.0,A,0.3170,A,0.0,A,0.2900,A,0.0,A,0.3070,A,0.0,A,0.2900,A,0.0,A,0.3010,A,0.0,A,0.7980,A,0.0,A,1.6730,A,0.0,A,1.3980,A,0.0,A,0.2980,A,0.0,A,0.2720,A,0.0,A,0.2670,A,0.0,A,0.2340,A,0.0,A,0.2680,A,0.0,A,0.2660,A,0.0,A,0.2200,A,0.0,A,0.2780,A,0.0,A,0.2530,A,0.0,A,0.2320,A,0.0,A,0.2730,A,0.0,A,0.2430,A,0.0,A,0.2500,A,0.0,A,0.2530,A,0.0,A,0.2540,A,0.0,A,0.2590,A,0.0,A,0.2320,A,0.0,A,0.2560,A,0.0,A,0.2810,A,0.0,A,0.2510,A,0.0,A,0.2980,A,0.0,A,0.2930,A,0.0,A,0.2690,A,0.0,A,0.2470,A,0.0,A,0.2860,A,0.0,A,0.2240,A,0.0,A,0.2670,A,0.0,A,0.4170,A,0.0,A,1.2220,A,0.0,A,0.8930,A,0.0,A,0.3400,A,0.0,A,0.3590,A,0.0,A,0.3370,A,0.0,A,0.3580,A
+61027693288,06/Apr/2013,A9608012,E,KWH,E1,N,0.0,A,0.3590,A,0.0,A,0.3170,A,0.0,A,0.3740,A,0.0,A,0.3270,A,0.0,A,0.3170,A,0.0,A,0.3500,A,0.0,A,0.3130,A,0.0,A,0.3260,A,0.0,A,0.3230,A,0.0,A,0.3320,A,0.0,A,0.3260,A,0.0,A,0.3040,A,0.0,A,0.3460,A,0.0,A,0.3160,A,0.0,A,0.3110,A,0.0,A,0.3700,A,0.0,A,0.3060,A,0.0,A,0.3080,A,0.0,A,0.2780,A,0.0,A,0.2790,A,0.0,A,0.2510,A,0.0,A,0.2700,A,0.0,A,0.2260,A,0.0,A,0.2850,A,0.0,A,0.2250,A,0.0,A,0.2550,A,0.0,A,0.2660,A,0.0,A,0.5580,A,0.0,A,1.6380,A,0.0,A,1.5940,A,0.0,A,1.6310,A,0.0,A,0.8020,A,0.0,A,0.3700,A,0.0,A,0.4050,A,0.0,A,0.3460,A,0.0,A,0.2950,A,0.0,A,0.2660,A,0.0,A,0.2660,A,0.0,A,0.2830,A,0.0,A,0.2520,A,0.0,A,0.3060,A,0.0,A,1.1150,A,0.0,A,0.9180,A,0.0,A,0.3950,A,0.0,A,0.3320,A,0.0,A,0.3940,A,0.0,A,0.3640,A,0.0,A,0.3880,A
+61027693288,07/Apr/2013,A9608012,E,KWH,E1,N,0.0,A,0.3870,A,0.0,A,0.3870,A,0.0,A,0.3910,A,0.0,A,0.4160,A,0.0,A,0.5170,A,0.0,A,0.3400,A,0.0,A,0.3580,A,0.0,A,1.0470,A,0.0,A,1.0900,A,0.0,A,0.9420,A,0.0,A,0.3200,A,0.0,A,0.3480,A,0.0,A,0.2760,A,0.0,A,0.3050,A,0.0,A,0.2480,A,0.0,A,0.2550,A,0.0,A,0.2800,A,0.0,A,0.2340,A,0.0,A,0.3270,A,0.0,A,0.3590,A,0.0,A,0.3170,A,0.0,A,0.3510,A,0.0,A,0.3280,A,0.0,A,0.3660,A,0.0,A,0.3360,A,0.0,A,0.3230,A,0.0,A,0.3620,A,0.0,A,0.3140,A,0.0,A,0.3490,A,0.0,A,0.3470,A,0.0,A,0.3710,A,0.0,A,0.3020,A,0.0,A,0.3390,A,0.0,A,0.3050,A,0.0,A,0.3240,A,0.0,A,0.2810,A,0.0,A,0.2980,A,0.0,A,0.2750,A,0.0,A,0.8600,A,0.0,A,1.2490,A,0.0,A,0.9720,A,0.0,A,0.3960,A,0.0,A,0.3640,A,0.0,A,0.4110,A,0.0,A,0.3620,A,0.0,A,0.3730,A,0.0,A,0.3820,A,0.0,A,0.3330,A
+61027693288,08/Apr/2013,A9608012,E,KWH,E1,N,0.0,A,0.3850,A,0.0,A,0.3430,A,0.0,A,0.3580,A,0.0,A,0.3610,A,0.0,A,0.3610,A,0.0,A,0.3510,A,0.0,A,0.3890,A,0.0,A,0.4050,A,0.0,A,0.3210,A,0.0,A,0.2490,A,0.0,A,0.2770,A,0.0,A,0.2420,A,0.0,A,0.2700,A,0.0,A,0.2950,A,0.0,A,0.4090,A,0.0,A,0.3740,A,0.0,A,0.2880,A,0.0,A,0.2340,A,0.0,A,0.2490,A,0.0,A,0.2440,A,0.0,A,0.2520,A,0.0,A,0.2150,A,0.0,A,0.2730,A,0.0,A,0.2210,A,0.0,A,0.2370,A,0.0,A,0.2620,A,0.0,A,0.2090,A,0.0,A,0.2550,A,0.0,A,0.2440,A,0.0,A,0.2260,A,0.0,A,0.2530,A,0.0,A,0.2340,A,0.0,A,0.2420,A,0.0,A,0.2360,A,0.0,A,0.2510,A,0.0,A,0.2370,A,0.0,A,0.2250,A,0.0,A,0.2690,A,0.0,A,0.2150,A,0.0,A,0.2450,A,0.0,A,0.2650,A,0.0,A,0.2020,A,0.0,A,0.2810,A,0.0,A,0.3800,A,0.0,A,0.4050,A,0.0,A,0.4810,A,0.0,A,0.3870,A,0.0,A,0.3430,A
+61027693288,09/Apr/2013,A9608012,E,KWH,E1,N,0.0,A,0.3680,A,0.0,A,0.3310,A,0.0,A,0.3380,A,0.0,A,0.3450,A,0.0,A,0.3300,A,0.0,A,0.3570,A,0.0,A,0.3990,A,0.0,A,0.3310,A,0.0,A,0.2780,A,0.0,A,0.2270,A,0.0,A,0.2390,A,0.0,A,0.2550,A,0.0,A,0.2140,A,0.0,A,0.3820,A,0.0,A,0.3320,A,0.0,A,0.3270,A,0.0,A,0.2940,A,0.0,A,0.2260,A,0.0,A,0.2600,A,0.0,A,0.2720,A,0.0,A,0.2220,A,0.0,A,0.2740,A,0.0,A,0.2520,A,0.0,A,0.2390,A,0.0,A,0.2630,A,0.0,A,0.2480,A,0.0,A,0.2680,A,0.0,A,0.2690,A,0.0,A,0.3010,A,0.0,A,0.2700,A,0.0,A,0.2950,A,0.0,A,0.2780,A,0.0,A,0.2340,A,0.0,A,0.2830,A,0.0,A,0.2570,A,0.0,A,0.2420,A,0.0,A,0.2730,A,0.0,A,0.2490,A,0.0,A,0.2560,A,0.0,A,0.2470,A,0.0,A,0.2690,A,0.0,A,0.2370,A,0.0,A,0.2560,A,0.0,A,1.0910,A,0.0,A,1.0630,A,0.0,A,0.6160,A,0.0,A,0.3620,A,0.0,A,0.3330,A
+61027693288,10/Apr/2013,A9608012,E,KWH,E1,N,0.0,A,0.3870,A,0.0,A,0.3400,A,0.0,A,0.3490,A,0.0,A,0.4120,A,0.0,A,0.3770,A,0.0,A,0.4130,A,0.0,A,0.3300,A,0.0,A,0.3170,A,0.0,A,0.2620,A,0.0,A,0.2450,A,0.0,A,0.2740,A,0.0,A,0.2820,A,0.0,A,0.2530,A,0.0,A,0.3740,A,0.0,A,0.3570,A,0.0,A,0.3210,A,0.0,A,0.2950,A,0.0,A,0.2340,A,0.0,A,0.2680,A,0.0,A,0.2590,A,0.0,A,0.2490,A,0.0,A,0.2650,A,0.0,A,0.2550,A,0.0,A,0.2670,A,0.0,A,0.2560,A,0.0,A,0.2700,A,0.0,A,0.2640,A,0.0,A,0.2450,A,0.0,A,0.2940,A,0.0,A,0.2430,A,0.0,A,0.2650,A,0.0,A,0.2890,A,0.0,A,0.2260,A,0.0,A,0.2920,A,0.0,A,0.2630,A,0.0,A,0.2460,A,0.0,A,0.2880,A,0.0,A,0.2470,A,0.0,A,0.2690,A,0.0,A,0.2680,A,0.0,A,0.2960,A,0.0,A,0.2560,A,0.0,A,0.3070,A,0.0,A,0.8230,A,0.0,A,0.8700,A,0.0,A,1.2350,A,0.0,A,1.5320,A,0.0,A,1.1980,A
+*/
+
+var testdata = ""+
+"NMI,IntervalReadDate,MeterSerialNo,EnergyDirection,UOM,RegisterID,ControlledLoad,0:15,T1,0:30,T2,0:45,T3,1:00,T4,1:15,T5,1:30,T6,1:45,T7,2:00,T8,2:15,T9,2:30,T10,2:45,T11,3:00,T12,3:15,T13,3:30,T14,3:45,T15,4:00,T16,4:15,T17,4:30,T18,4:45,T19,5:00,T20,5:15,T21,5:30,T22,5:45,T23,6:00,T24,6:15,T25,6:30,T26,6:45,T27,7:00,T28,7:15,T29,7:30,T30,7:45,T31,8:00,T32,8:15,T33,8:30,T34,8:45,T35,9:00,T36,9:15,T37,9:30,T38,9:45,T39,10:00,T40,10:15,T41,10:30,T42,10:45,T43,11:00,T44,11:15,T45,11:30,T46,11:45,T47,12:00,T48,12:15,T49,12:30,T50,12:45,T51,13:00,T52,13:15,T53,13:30,T54,13:45,T55,14:00,T56,14:15,T57,14:30,T58,14:45,T59,15:00,T60,15:15,T61,15:30,T62,15:45,T63,16:00,T64,16:15,T65,16:30,T66,16:45,T67,17:00,T68,17:15,T69,17:30,T70,17:45,T71,18:00,T72,18:15,T73,18:30,T74,18:45,T75,19:00,T76,19:15,T77,19:30,T78,19:45,T79,20:00,T80,20:15,T81,20:30,T82,20:45,T83,21:00,T84,21:15,T85,21:30,T86,21:45,T87,22:00,T88,22:15,T89,22:30,T90,22:45,T91,23:00,T92,23:15,T93,23:30,T94,23:45,T95,0:00,T96\n"+
+"61027693288,30/Mar/2013,A9608012,E,KWH,E1,N,0.0,A,0.4620,A,0.0,A,0.4510,A,0.0,A,0.4490,A,0.0,A,0.4450,A,0.0,A,0.4440,A,0.0,A,0.4730,A,0.0,A,0.4170,A,0.0,A,0.4630,A,0.0,A,0.4630,A,0.0,A,0.4100,A,0.0,A,0.5210,A,0.0,A,0.4560,A,0.0,A,0.4760,A,0.0,A,0.4340,A,0.0,A,0.4670,A,0.0,A,0.4660,A,0.0,A,0.4870,A,0.0,A,0.4710,A,0.0,A,0.4950,A,0.0,A,0.4480,A,0.0,A,0.9660,A,0.0,A,0.4630,A,0.0,A,0.5050,A,0.0,A,0.4710,A,0.0,A,0.4760,A,0.0,A,0.4100,A,0.0,A,0.3850,A,0.0,A,0.3820,A,0.0,A,0.3420,A,0.0,A,0.3900,A,0.0,A,0.3530,A,0.0,A,0.3500,A,0.0,A,0.3830,A,0.0,A,0.3210,A,0.0,A,0.3320,A,0.0,A,0.3300,A,0.0,A,0.3700,A,0.0,A,0.4410,A,0.0,A,0.4620,A,0.0,A,0.4660,A,0.0,A,0.4370,A,0.0,A,0.5060,A,0.0,A,0.4700,A,0.0,A,0.4350,A,0.0,A,0.4340,A,0.0,A,0.4330,A,0.0,A,0.4090,A,0.0,A,0.4200,A\n"+
+"61027693288,31/Mar/2013,A9608012,E,KWH,E1,N,0.0,A,0.6510,A,0.0,A,1.1060,A,0.0,A,1.1390,A,0.0,A,1.1290,A,0.0,A,1.1160,A,0.0,A,1.0660,A,0.0,A,0.6200,A,0.0,A,0.4230,A,0.0,A,0.3850,A,0.0,A,0.4590,A,0.0,A,0.4530,A,0.0,A,0.4230,A,0.0,A,0.4160,A,0.0,A,0.4220,A,0.0,A,0.3970,A,0.0,A,0.3980,A,0.0,A,0.3540,A,0.0,A,0.4100,A,0.0,A,0.3700,A,0.0,A,0.3910,A,0.0,A,0.4670,A,0.0,A,0.4070,A,0.0,A,0.4830,A,0.0,A,0.3670,A,0.0,A,0.3190,A,0.0,A,0.3600,A,0.0,A,0.3700,A,0.0,A,0.3440,A,0.0,A,0.3750,A,0.0,A,0.3820,A,0.0,A,0.3470,A,0.0,A,0.3260,A,0.0,A,0.3640,A,0.0,A,0.3160,A,0.0,A,0.3410,A,0.0,A,0.3500,A,0.0,A,0.3150,A,0.0,A,0.3540,A,0.0,A,0.4310,A,0.0,A,0.4630,A,0.0,A,0.4390,A,0.0,A,0.4600,A,0.0,A,0.4610,A,0.0,A,0.4130,A,0.0,A,0.4730,A,0.0,A,0.4240,A,0.0,A,0.4410,A,0.0,A,0.4290,A\n"+
+"61027693288,01/Apr/2013,A9608012,E,KWH,E1,N,0.0,A,0.4010,A,0.0,A,0.4170,A,0.0,A,0.3990,A,0.0,A,0.4150,A,0.0,A,0.3690,A,0.0,A,0.4040,A,0.0,A,0.3930,A,0.0,A,0.3220,A,0.0,A,0.3520,A,0.0,A,0.3540,A,0.0,A,0.3570,A,0.0,A,0.3230,A,0.0,A,0.2820,A,0.0,A,0.3270,A,0.0,A,0.2770,A,0.0,A,0.3070,A,0.0,A,0.3350,A,0.0,A,0.4090,A,0.0,A,0.3380,A,0.0,A,0.3740,A,0.0,A,0.4110,A,0.0,A,0.3580,A,0.0,A,0.4170,A,0.0,A,0.4110,A,0.0,A,0.4590,A,0.0,A,0.4940,A,0.0,A,0.8650,A,0.0,A,0.3250,A,0.0,A,0.3160,A,0.0,A,0.3120,A,0.0,A,0.3090,A,0.0,A,0.2940,A,0.0,A,0.3340,A,0.0,A,0.2930,A,0.0,A,0.3040,A,0.0,A,0.3340,A,0.0,A,0.3010,A,0.0,A,0.4440,A,0.0,A,0.4460,A,0.0,A,0.4690,A,0.0,A,0.4370,A,0.0,A,0.4920,A,0.0,A,0.4570,A,0.0,A,0.4680,A,0.0,A,0.4310,A,0.0,A,0.4540,A,0.0,A,0.4110,A,0.0,A,0.4680,A\n"+
+"61027693288,02/Apr/2013,A9608012,E,KWH,E1,N,0.0,A,0.4150,A,0.0,A,0.4260,A,0.0,A,0.3060,A,0.0,A,0.2850,A,0.0,A,0.3000,A,0.0,A,0.2840,A,0.0,A,0.2200,A,0.0,A,0.0520,A,0.0,A,0.0780,A,0.0,A,0.0860,A,0.0,A,0.1090,A,0.0,A,0.1910,A,0.0,A,0.1810,A,0.0,A,0.1910,A,0.0,A,0.0750,A,0.0,A,0.0560,A,0.0,A,0.0700,A,0.0,A,0.0350,A,0.0,A,0.0680,A,0.0,A,0.0560,A,0.0,A,0.0410,A,0.0,A,0.0670,A,0.0,A,0.0480,A,0.0,A,0.0470,A,0.0,A,0.0650,A,0.0,A,0.0430,A,0.0,A,0.0510,A,0.0,A,0.0640,A,0.0,A,0.0400,A,0.0,A,0.0530,A,0.0,A,0.0650,A,0.0,A,0.0370,A,0.0,A,0.0570,A,0.0,A,0.0630,A,0.0,A,0.0350,A,0.0,A,0.0580,A,0.0,A,0.0630,A,0.0,A,0.0330,A,0.0,A,0.0590,A,0.0,A,0.0620,A,0.0,A,0.1040,A,0.0,A,0.2470,A,0.0,A,0.2510,A,0.0,A,0.6010,A,0.0,A,0.3170,A,0.0,A,0.3260,A,0.0,A,0.3130,A,0.0,A,0.2990,A\n"+
+"61027693288,03/Apr/2013,A9608012,E,KWH,E1,N,0.0,A,0.3220,A,0.0,A,0.2780,A,0.0,A,0.2750,A,0.0,A,0.2970,A,0.0,A,0.2780,A,0.0,A,0.2650,A,0.0,A,0.2480,A,0.0,A,0.2670,A,0.0,A,0.2470,A,0.0,A,0.2260,A,0.0,A,0.1870,A,0.0,A,0.2420,A,0.0,A,0.2380,A,0.0,A,0.2280,A,0.0,A,0.2510,A,0.0,A,0.1190,A,0.0,A,0.1510,A,0.0,A,0.1540,A,0.0,A,0.1090,A,0.0,A,0.1660,A,0.0,A,0.1300,A,0.0,A,0.1320,A,0.0,A,0.1690,A,0.0,A,0.1080,A,0.0,A,0.1540,A,0.0,A,0.1520,A,0.0,A,0.1160,A,0.0,A,0.1670,A,0.0,A,0.1330,A,0.0,A,0.1600,A,0.0,A,0.1630,A,0.0,A,0.1820,A,0.0,A,0.1600,A,0.0,A,0.1820,A,0.0,A,0.1300,A,0.0,A,0.1460,A,0.0,A,0.1480,A,0.0,A,0.1400,A,0.0,A,0.1380,A,0.0,A,0.1370,A,0.0,A,0.1490,A,0.0,A,0.1440,A,0.0,A,0.2730,A,0.0,A,0.2480,A,0.0,A,0.2410,A,0.0,A,0.3240,A,0.0,A,0.2150,A,0.0,A,0.2450,A\n"+
+"61027693288,04/Apr/2013,A9608012,E,KWH,E1,N,0.0,A,0.2390,A,0.0,A,0.1940,A,0.0,A,0.2530,A,0.0,A,0.2150,A,0.0,A,0.2130,A,0.0,A,0.2460,A,0.0,A,0.2010,A,0.0,A,0.1750,A,0.0,A,0.1500,A,0.0,A,0.1370,A,0.0,A,0.2210,A,0.0,A,0.2760,A,0.0,A,0.3520,A,0.0,A,0.3570,A,0.0,A,0.4180,A,0.0,A,0.3700,A,0.0,A,0.2870,A,0.0,A,0.2540,A,0.0,A,0.2730,A,0.0,A,0.2420,A,0.0,A,0.2320,A,0.0,A,0.2630,A,0.0,A,0.2330,A,0.0,A,0.2500,A,0.0,A,0.2350,A,0.0,A,0.2480,A,0.0,A,0.2400,A,0.0,A,0.2390,A,0.0,A,0.2500,A,0.0,A,0.2210,A,0.0,A,0.2530,A,0.0,A,0.2470,A,0.0,A,0.2120,A,0.0,A,0.2680,A,0.0,A,0.2290,A,0.0,A,0.2270,A,0.0,A,0.2640,A,0.0,A,0.2210,A,0.0,A,0.2350,A,0.0,A,0.2510,A,0.0,A,0.2300,A,0.0,A,0.3120,A,0.0,A,0.3360,A,0.0,A,0.3490,A,0.0,A,0.3620,A,0.0,A,0.3630,A,0.0,A,0.4020,A,0.0,A,0.3920,A\n"+
+"61027693288,05/Apr/2013,A9608012,E,KWH,E1,N,0.0,A,0.3880,A,0.0,A,0.4070,A,0.0,A,0.3850,A,0.0,A,0.3630,A,0.0,A,0.3400,A,0.0,A,0.2850,A,0.0,A,0.3170,A,0.0,A,0.2900,A,0.0,A,0.3070,A,0.0,A,0.2900,A,0.0,A,0.3010,A,0.0,A,0.7980,A,0.0,A,1.6730,A,0.0,A,1.3980,A,0.0,A,0.2980,A,0.0,A,0.2720,A,0.0,A,0.2670,A,0.0,A,0.2340,A,0.0,A,0.2680,A,0.0,A,0.2660,A,0.0,A,0.2200,A,0.0,A,0.2780,A,0.0,A,0.2530,A,0.0,A,0.2320,A,0.0,A,0.2730,A,0.0,A,0.2430,A,0.0,A,0.2500,A,0.0,A,0.2530,A,0.0,A,0.2540,A,0.0,A,0.2590,A,0.0,A,0.2320,A,0.0,A,0.2560,A,0.0,A,0.2810,A,0.0,A,0.2510,A,0.0,A,0.2980,A,0.0,A,0.2930,A,0.0,A,0.2690,A,0.0,A,0.2470,A,0.0,A,0.2860,A,0.0,A,0.2240,A,0.0,A,0.2670,A,0.0,A,0.4170,A,0.0,A,1.2220,A,0.0,A,0.8930,A,0.0,A,0.3400,A,0.0,A,0.3590,A,0.0,A,0.3370,A,0.0,A,0.3580,A\n"+
+"61027693288,06/Apr/2013,A9608012,E,KWH,E1,N,0.0,A,0.3590,A,0.0,A,0.3170,A,0.0,A,0.3740,A,0.0,A,0.3270,A,0.0,A,0.3170,A,0.0,A,0.3500,A,0.0,A,0.3130,A,0.0,A,0.3260,A,0.0,A,0.3230,A,0.0,A,0.3320,A,0.0,A,0.3260,A,0.0,A,0.3040,A,0.0,A,0.3460,A,0.0,A,0.3160,A,0.0,A,0.3110,A,0.0,A,0.3700,A,0.0,A,0.3060,A,0.0,A,0.3080,A,0.0,A,0.2780,A,0.0,A,0.2790,A,0.0,A,0.2510,A,0.0,A,0.2700,A,0.0,A,0.2260,A,0.0,A,0.2850,A,0.0,A,0.2250,A,0.0,A,0.2550,A,0.0,A,0.2660,A,0.0,A,0.5580,A,0.0,A,1.6380,A,0.0,A,1.5940,A,0.0,A,1.6310,A,0.0,A,0.8020,A,0.0,A,0.3700,A,0.0,A,0.4050,A,0.0,A,0.3460,A,0.0,A,0.2950,A,0.0,A,0.2660,A,0.0,A,0.2660,A,0.0,A,0.2830,A,0.0,A,0.2520,A,0.0,A,0.3060,A,0.0,A,1.1150,A,0.0,A,0.9180,A,0.0,A,0.3950,A,0.0,A,0.3320,A,0.0,A,0.3940,A,0.0,A,0.3640,A,0.0,A,0.3880,A\n"+
+"61027693288,07/Apr/2013,A9608012,E,KWH,E1,N,0.0,A,0.3870,A,0.0,A,0.3870,A,0.0,A,0.3910,A,0.0,A,0.4160,A,0.0,A,0.5170,A,0.0,A,0.3400,A,0.0,A,0.3580,A,0.0,A,1.0470,A,0.0,A,1.0900,A,0.0,A,0.9420,A,0.0,A,0.3200,A,0.0,A,0.3480,A,0.0,A,0.2760,A,0.0,A,0.3050,A,0.0,A,0.2480,A,0.0,A,0.2550,A,0.0,A,0.2800,A,0.0,A,0.2340,A,0.0,A,0.3270,A,0.0,A,0.3590,A,0.0,A,0.3170,A,0.0,A,0.3510,A,0.0,A,0.3280,A,0.0,A,0.3660,A,0.0,A,0.3360,A,0.0,A,0.3230,A,0.0,A,0.3620,A,0.0,A,0.3140,A,0.0,A,0.3490,A,0.0,A,0.3470,A,0.0,A,0.3710,A,0.0,A,0.3020,A,0.0,A,0.3390,A,0.0,A,0.3050,A,0.0,A,0.3240,A,0.0,A,0.2810,A,0.0,A,0.2980,A,0.0,A,0.2750,A,0.0,A,0.8600,A,0.0,A,1.2490,A,0.0,A,0.9720,A,0.0,A,0.3960,A,0.0,A,0.3640,A,0.0,A,0.4110,A,0.0,A,0.3620,A,0.0,A,0.3730,A,0.0,A,0.3820,A,0.0,A,0.3330,A\n"+
+"61027693288,08/Apr/2013,A9608012,E,KWH,E1,N,0.0,A,0.3850,A,0.0,A,0.3430,A,0.0,A,0.3580,A,0.0,A,0.3610,A,0.0,A,0.3610,A,0.0,A,0.3510,A,0.0,A,0.3890,A,0.0,A,0.4050,A,0.0,A,0.3210,A,0.0,A,0.2490,A,0.0,A,0.2770,A,0.0,A,0.2420,A,0.0,A,0.2700,A,0.0,A,0.2950,A,0.0,A,0.4090,A,0.0,A,0.3740,A,0.0,A,0.2880,A,0.0,A,0.2340,A,0.0,A,0.2490,A,0.0,A,0.2440,A,0.0,A,0.2520,A,0.0,A,0.2150,A,0.0,A,0.2730,A,0.0,A,0.2210,A,0.0,A,0.2370,A,0.0,A,0.2620,A,0.0,A,0.2090,A,0.0,A,0.2550,A,0.0,A,0.2440,A,0.0,A,0.2260,A,0.0,A,0.2530,A,0.0,A,0.2340,A,0.0,A,0.2420,A,0.0,A,0.2360,A,0.0,A,0.2510,A,0.0,A,0.2370,A,0.0,A,0.2250,A,0.0,A,0.2690,A,0.0,A,0.2150,A,0.0,A,0.2450,A,0.0,A,0.2650,A,0.0,A,0.2020,A,0.0,A,0.2810,A,0.0,A,0.3800,A,0.0,A,0.4050,A,0.0,A,0.4810,A,0.0,A,0.3870,A,0.0,A,0.3430,A\n"+
+"61027693288,09/Apr/2013,A9608012,E,KWH,E1,N,0.0,A,0.3680,A,0.0,A,0.3310,A,0.0,A,0.3380,A,0.0,A,0.3450,A,0.0,A,0.3300,A,0.0,A,0.3570,A,0.0,A,0.3990,A,0.0,A,0.3310,A,0.0,A,0.2780,A,0.0,A,0.2270,A,0.0,A,0.2390,A,0.0,A,0.2550,A,0.0,A,0.2140,A,0.0,A,0.3820,A,0.0,A,0.3320,A,0.0,A,0.3270,A,0.0,A,0.2940,A,0.0,A,0.2260,A,0.0,A,0.2600,A,0.0,A,0.2720,A,0.0,A,0.2220,A,0.0,A,0.2740,A,0.0,A,0.2520,A,0.0,A,0.2390,A,0.0,A,0.2630,A,0.0,A,0.2480,A,0.0,A,0.2680,A,0.0,A,0.2690,A,0.0,A,0.3010,A,0.0,A,0.2700,A,0.0,A,0.2950,A,0.0,A,0.2780,A,0.0,A,0.2340,A,0.0,A,0.2830,A,0.0,A,0.2570,A,0.0,A,0.2420,A,0.0,A,0.2730,A,0.0,A,0.2490,A,0.0,A,0.2560,A,0.0,A,0.2470,A,0.0,A,0.2690,A,0.0,A,0.2370,A,0.0,A,0.2560,A,0.0,A,1.0910,A,0.0,A,1.0630,A,0.0,A,0.6160,A,0.0,A,0.3620,A,0.0,A,0.3330,A\n"+
+"61027693288,10/Apr/2013,A9608012,E,KWH,E1,N,0.0,A,0.3870,A,0.0,A,0.3400,A,0.0,A,0.3490,A,0.0,A,0.4120,A,0.0,A,0.3770,A,0.0,A,0.4130,A,0.0,A,0.3300,A,0.0,A,0.3170,A,0.0,A,0.2620,A,0.0,A,0.2450,A,0.0,A,0.2740,A,0.0,A,0.2820,A,0.0,A,0.2530,A,0.0,A,0.3740,A,0.0,A,0.3570,A,0.0,A,0.3210,A,0.0,A,0.2950,A,0.0,A,0.2340,A,0.0,A,0.2680,A,0.0,A,0.2590,A,0.0,A,0.2490,A,0.0,A,0.2650,A,0.0,A,0.2550,A,0.0,A,0.2670,A,0.0,A,0.2560,A,0.0,A,0.2700,A,0.0,A,0.2640,A,0.0,A,0.2450,A,0.0,A,0.2940,A,0.0,A,0.2430,A,0.0,A,0.2650,A,0.0,A,0.2890,A,0.0,A,0.2260,A,0.0,A,0.2920,A,0.0,A,0.2630,A,0.0,A,0.2460,A,0.0,A,0.2880,A,0.0,A,0.2470,A,0.0,A,0.2690,A,0.0,A,0.2680,A,0.0,A,0.2960,A,0.0,A,0.2560,A,0.0,A,0.3070,A,0.0,A,0.8230,A,0.0,A,0.8700,A,0.0,A,1.2350,A,0.0,A,1.5320,A,0.0,A,1.1980,A";
+
+
+
+if( urlParams['test'] )
+{
+	GotData( Convert_Lumo_To_Matrix( testdata ) );
+}
+else
+if( urlParams['test2'] )
+{
+	var data = {"fromdate":"2014-08-01","data":[[[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,1],[0,0,0],[0,2,0],[0,0,0],[0,0,11],[0,0,0],[0,0,0],
+	[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0]],[[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],
+	[0,0,0],[0,9,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0]],[[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,4,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,5],[0,0,0],[0,0,0],[0,0,0],
+	[0,0,0],[0,0,0],[0,0,0],[0,7,0],[0,0,0],[0,0,0],[0,0,0]],[[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],
+	[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0]],[[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],
+	[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0]]],"labels":["Monday","Tuesday","Wednesday","Thursday","Friday"]};
+	GotData(data);
+}
+else
+if( document.location.href.match(/file:/) )
+{
+	LoadFile( "Electricity_Consumption_Data.csv", function(result) {
+		GotData( Convert_Lumo_To_Matrix( result ) );
+		SetStatus( "Done." );
+	} );
+} else
+{
+	SetStatus( "Requesting meter data .... " );
+
+	$.ajax({
+		url : "Electricity_Consumption_Data.csv",
+		data : "{}",
+		type: "get",
+		dataType: "text",
+		success: function( data ) {
+			SetStatus( "Got Data, now rendering ....." );
+			log("got result");			// Dont dump objects to console
+			GotData( Convert_Lumo_To_Matrix( data, new Date(startdate), new Date(todate) ) );
+			SetStatus( "Done." );
+		},
+		error : function(err) {
+			SetStatus( "ERROR : " + err.toString() );
+		}
+	});
+}
+
+
+</script>
+
+
+</html>
