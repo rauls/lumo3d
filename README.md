@@ -17,7 +17,12 @@ And you will see the cool 3D Viewer
 
 ![alt text](screen.png "Screen")
 
+# TEST AND RUN
 
+You can now view it your self, <A Href="http://lumo3d.ac3dec.com/"> just browse to here. </A>
+
+* You can move back in time
+* You can import your own data now.
 
 ## LICENSE
 
