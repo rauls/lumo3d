@@ -14,10 +14,9 @@ handlers:
   static_files: \1
   upload: (.*\.html)
 
-- url: /images/(.*\.gif)
-  mime_type: image/gif
+- url: /images/(.*\.(gif|png|jpg))$
   static_files: images/\1
-  upload: (images/*\.gif)
+  upload: images/.*\.(gif|png|jpg)$
 
 - url: /(.*\.js)
   mime_type: text/javascript

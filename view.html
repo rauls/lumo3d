@@ -105,7 +105,7 @@ body {
     <div id="header" >
         <div id="header-inner" style="float:left;">
             <h3 >	Electricity Usage History from <span id="header-text"> </span> </h3>
-            <span> Mouse to rotate, mouse wheel to zoom, ctrlkey + mouse to move </span>
+            <span>Left Click and drag mouse to rotate, mouse wheel to zoom, ctrlkey + mouse to move </span>
 			<BR>
             <span ID="status">  </span>
         </div>
@@ -259,7 +259,7 @@ var dragging = false;
 
 var newInput = false, newInputXY = false;
 var yaw   = Math.PI/2;
-var pitch = 0.15;
+var pitch = 0.25;
 var camera_x = 0;
 var camera_y = 0;
 var camera_z = 600;
@@ -896,6 +896,20 @@ $(".down-arrow").click( function(e) {
 $(".down-arrow").on( { 'touchstart' : function(e){ 
 	ReplotData( -7 );
 } } );
+
+
+function AutoRotate()
+{
+	if( ! dragging )
+	{
+		yaw += 0.03;
+		newInput = true
+	} 
+}
+
+
+setInterval( AutoRotate, 1000/15 );
+
 
 /* ----------------------------------------------------------------------------------- */
 
