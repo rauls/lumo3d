@@ -61,7 +61,6 @@ body {
 	<script type="text/javascript">
 		function InitWebGLContext() {
 			if ( $.browser && ! $.browser.msie ) {
-				log( "return" );
 				return;
 			}
 			var glCanvas = document.getElementById("theCanvas");
@@ -75,7 +74,7 @@ body {
 			gl = glCanvas.getContext("webgl");
 			if (!gl) {
 				// if failed, try experimental one
-				log(" webgl failed ");
+				console.log(" webgl failed ");
 				gl = glCanvas.getContext("experimental-webgl");
 			}
 			if (!gl) {
@@ -91,7 +90,7 @@ body {
 				"WebGL vendor=" + gl.getParameter(gl.VENDOR) + "\n" +
 				"WebGL renderer=" + gl.getParameter(gl.RENDERER) + "\n"
 			);
-			log( text );
+			console.log( text );
 		}
 	</script>
 
@@ -105,7 +104,7 @@ body {
     <div id="header" >
         <div id="header-inner" style="float:left;">
             <h3 >	Electricity Usage History from <span id="header-text"> </span> </h3>
-            <span>Left Click and drag mouse to rotate, mouse wheel to zoom, ctrlkey + mouse to move </span>
+            <span>Left Click and drag mouse to rotate, mouse wheel to zoom, ctrlkey + mouse to move blocks.</span>
 			<BR>
             <span ID="status">  </span>
         </div>
@@ -115,7 +114,7 @@ body {
 		<div class="down-arrow"></div>
 		<input type='file' id="selectFile" >
 		
-		<div id="meterinfo" class="round-border" style="float:left;position:absolute;display:none;left:-2000px; width:250px;height:14px;">
+		<div id="blockInfo" class="round-border" style="float:left;position:absolute;display:none;left:-2000px; width:250px;height:14px;">
 			<div>
 				<span id="meterhead" style="text-align: left; font-size: 0.7em;"></span><BR>
 				<textarea id="metertext" cols="80" rows="15"></textarea>
@@ -143,6 +142,22 @@ var fullscreen = 0;
 var fullscreen_w = 0;
 var fullscreen_h = 0;
 
+function log () {
+  if (typeof console == 'undefined') {
+	  return;
+  }
+  try {
+    var hms = ">";
+	arguments[0] = hms + arguments[0];
+
+	if (/MSIE/.test(navigator.userAgent) && !window.opera) {
+		console.log(arguments[0]);
+	} else {
+		console.log.apply(console, arguments);
+	}
+  } catch(e) { console.log(e); };
+}
+
 function gofull() {
 	fullscreen = 1;
 	var w = window.innerWidth;
@@ -160,6 +175,14 @@ function gofull() {
 	w -= 4;
 	//$("#theCanvas").css('width', w+'px' );
 	//$("#theCanvas").css('height', h+'px');
+}
+
+function gomax() {
+	var w = window.innerWidth;
+	var h = window.innerHeight;
+
+	$("#container").css('width', w+'px');
+	$("#container").css('height', h+'px');
 }
 
 function go_custom() {
@@ -182,21 +205,7 @@ function getParameters() {
 }
 
 
-function log () {
-  if (typeof console == 'undefined') {
-	  return;
-  }
-  try {
-    var hms = ">";
-	arguments[0] = hms + arguments[0];
 
-	if (/MSIE/.test(navigator.userAgent) && !window.opera) {
-		console.log(arguments[0]);
-	} else {
-		console.log.apply(console, arguments);
-	}
-  } catch(e) { console.log(e); };
-}
 
 var urlHashJSON	= {
 	read	: function(){
@@ -419,8 +428,8 @@ function CreateGrids(width,blockwidth,n_days,n_hours, highest)
 		groupBg.add( AddText( Math.floor(1000*n*(highest/units))+" W", -width-18, (n*(height)) + (height/2) - (height/2), +( (1+n_days) * (blockwidth/2) ), 0,0, (0.2), 0xFFFFFF ) );
 	}
 
-	groupBg.add( AddText( "Time",   0,        260, -( (1+n_days) * (blockwidth/2) ), 0,0 ) );
-	groupBg.add( AddText( "Date", -width/1.5, 260, 150,    0,90/180 * (Math.PI) ) );
+	groupBg.add( AddText( "Time (0-23hr)",   0,        260, -( (1+n_days) * (blockwidth/2) ), 0,0 ) );
+	groupBg.add( AddText( "Days recent to past", -width/1.5, 260, 150,    0,90/180 * (Math.PI) ) );
 
 	return scale;		// return the scaling factor
 }
@@ -584,10 +593,15 @@ function Init_Scene(meter_data)
 	var w = $("#container").width();
 	var h = $("#container").height() * .66;
 
-	if( fullscreen == 1 ) {
+	if( fullscreen == 1 ) 
+	{
 		w = fullscreen_w;
 		h = fullscreen_h;
+	} else {
+		w = window.innerWidth;
+		h = window.innerHeight - 64;
 	}
+
 	log( "Init Scene, w="+w + " h="+h );
 	camera = new THREE.PerspectiveCamera( 60, w / h, 1, 10000 );
 	camera.position.z = 500;
@@ -599,16 +613,16 @@ function Init_Scene(meter_data)
 	dirLight.position.set( 0, 0, 1 ).normalize();
 	scene.add( dirLight );
 
-	var pointLight = new THREE.PointLight( 0xffffff, 1.5 );
-	pointLight.position.set( 0, 100, 90 );
+	var pointLight = new THREE.PointLight( 0xcfcfff, 1.5 );
+	pointLight.position.set( 0, 300, 390 );
 	scene.add( pointLight );
 
 	pointLight = new THREE.PointLight( 0xffffff, 1.5 );
-	pointLight.position.set( 0, 300, 590 );
+	pointLight.position.set( -320, 300, 590 );
 	scene.add( pointLight );
 
-	pointLight = new THREE.PointLight( 0xffffff, 1.5 );
-	pointLight.position.set( 730, 330, -230 );
+	pointLight = new THREE.PointLight( 0xffffCf, 1.5 );
+	pointLight.position.set( 730, 430, -530 );
 	scene.add( pointLight );
 
 	faceMaterial = new THREE.MeshFaceMaterial();
@@ -624,7 +638,7 @@ function Init_Scene(meter_data)
 	if( mergemeters ) { material_props.opacity = 0.55; }
 
 
-	var plane = new THREE.Mesh( new THREE.PlaneGeometry( 10000, 10000 ), new THREE.MeshPhongMaterial( { color: 0xFFFFFF, opacity: 0.50, transparent: true, _shading: THREE.SmoothShading } ) );
+	var plane = new THREE.Mesh( new THREE.PlaneGeometry( 10000, 10000 ), new THREE.MeshPhongMaterial( { color: 0xFFDFFF, opacity: 0.30, transparent: true, _shading: THREE.SmoothShading } ) );
 	plane.position.y = -55;
 	plane.rotation.x = - Math.PI / 2;
 	scene.add( plane );
@@ -778,7 +792,7 @@ function mouseDown(event) {
     downX = lastX = event.clientX;
     downY = lastY = event.clientY;
     dragging = true;
-	$("#meterinfo").hide();
+	$("#blockInfo").hide();
 }
 
 function mouseUp(event)
@@ -845,7 +859,7 @@ function mouseMove(event) {
 		} else
 		if (event.ctrlKey)
 		{
-			Xoffset = (event.clientX - lastX) * scale;
+			Xoffset = -(event.clientX - lastX) * scale;
 			Yoffset = (event.clientY - lastY) * scale;
 			newInputXY = true;
 		} else
@@ -897,14 +911,21 @@ $(".down-arrow").on( { 'touchstart' : function(e){
 	ReplotData( -7 );
 } } );
 
+var allowRotate = 0;
 
 function AutoRotate()
 {
-	if( ! dragging )
+	var now = new Date().getTime();
+	if( ! dragging && now > allowRotate )
 	{
 		yaw += 0.03;
 		newInput = true
-	} 
+		allowRotate = 0;
+	} else
+	if( dragging )
+	{
+		allowRotate = now + (30*1000);
+	}
 }
 
 
@@ -1012,6 +1033,73 @@ function SetStatus(text)
 	$("#status").text(text);
 }
 
+
+
+//DATE,METERID,ESTIMATED,KWH(Consumption)
+//08/Jan/2014 00:00,4332798,N,0.197
+function Convert_SPAUSNET(csvdata, start_offset, total_days)
+{
+	var rows = csvdata.split( /\r\n|\n|\r/ );
+	var names = rows[0].split(",");
+	var namesmap = {};
+	for( var n in names ) {
+		namesmap[ names[n] ] = n;
+	}
+	var temp = rows[ rows.length-2 ].split(",");
+	var lastDate = temp[0];
+	log("lastDate = " + lastDate );
+
+	var toDate = new Date( lastDate );
+	var endDate = new Date( toDate.getTime() - ((start_offset)*86400*1000) );
+	var fromDate = new Date( toDate.getTime() - ((max+start_offset)*86400*1000) );
+
+	var matrix = { "fromdate": 0, "data":[] , "labels":[], highest: 0 };
+	if( toDate != undefined ) {
+		$("#header-text").text(  matrix.fromdate + " to " + localtimeYMD( endDate ) );
+	}
+	
+	var data = {};
+	var history = new Array();
+	var thisDate, prevDate;
+	var max = total_days || 30, di = 0, item;
+
+	// Traverse from start
+	for( var i = 1; i < rows.length && di < total_days; i++ )
+	{
+		var row = rows[i];
+		item = row.split(",");
+		thisDate = new Date( item[0] );
+		if( thisDate.getTime() < fromDate.getTime() ) {
+			continue;
+		}
+		if( !prevDate || thisDate.getDate() != prevDate.getDate() ) {
+			if( !prevDate ) {
+				matrix.fromdate = prevDate;
+			}
+			if( history.length>0) {
+				matrix.data[di++] = history;
+			}
+			matrix.labels.push( item[0] );
+			history = new Array();
+			data = {};
+			prevDate = thisDate;
+		} else {
+			var kwh = parseFloat( item[3] );
+			history.push( [ kwh ] );
+			if( kwh > matrix.highest ) {
+				matrix.highest = kwh;
+			}
+		}
+	}
+	if( ! matrix.serial ) {
+		matrix.serial = item[1];
+	}
+
+	return matrix;
+}
+//	var data = {"fromdate":"2014-08-01","data":[[[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,1],[0,0,0],[0,2,0],[0,0,0],[0,0,11],[0,0,0],[0,0,0],
+
+
 /*
 INPUT = 
 NMI,IntervalReadDate,MeterSerialNo,EnergyDirection,UOM,RegisterID,ControlledLoad,0:15,T1,0:30,T2,0:45,T3,1:00,T4,1:15,T5,1:30,T6,1:45,T7,2:00,T8,2:15,T9,2:30,T10,2:45,T11,3:00,T12,3:15,T13,3:30,T14,3:45,T15,4:00,T16,4:15,T17,4:30,T18,4:45,T19,5:00,T20,5:15,T21,5:30,T22,5:45,T23,6:00,T24,6:15,T25,6:30,T26,6:45,T27,7:00,T28,7:15,T29,7:30,T30,7:45,T31,8:00,T32,8:15,T33,8:30,T34,8:45,T35,9:00,T36,9:15,T37,9:30,T38,9:45,T39,10:00,T40,10:15,T41,10:30,T42,10:45,T43,11:00,T44,11:15,T45,11:30,T46,11:45,T47,12:00,T48,12:15,T49,12:30,T50,12:45,T51,13:00,T52,13:15,T53,13:30,T54,13:45,T55,14:00,T56,14:15,T57,14:30,T58,14:45,T59,15:00,T60,15:15,T61,15:30,T62,15:45,T63,16:00,T64,16:15,T65,16:30,T66,16:45,T67,17:00,T68,17:15,T69,17:30,T70,17:45,T71,18:00,T72,18:15,T73,18:30,T74,18:45,T75,19:00,T76,19:15,T77,19:30,T78,19:45,T79,20:00,T80,20:15,T81,20:30,T82,20:45,T83,21:00,T84,21:15,T85,21:30,T86,21:45,T87,22:00,T88,22:15,T89,22:30,T90,22:45,T91,23:00,T92,23:15,T93,23:30,T94,23:45,T95,0:00,T96
@@ -1051,7 +1139,6 @@ function Convert_Lumo_To_Matrix( csvdata, start_offset, total_days )
 		{
 			var row = rows[i];
 			var item = row.split(",");
-			var data = {};
 			var history = new Array();
 			var pos = 0;
 			for( var n in item ) {
@@ -1098,15 +1185,16 @@ function LoadFile( target, CALLBACK )
 {
 	if (window.File && window.FileReader && window.FileList && window.Blob) 
 	{
-
 		var reader = new FileReader();
 		// Closure to capture the file information.
 		reader.onload = function(e) {
 			CALLBACK(e.target.result);
 		};
 
-		// Read in the image file as a data URL.
-		reader.readAsText( target.files[0] );
+		if( target && target.files ) {
+			// Read in the image file as a data URL.
+			reader.readAsText( target.files[0] );
+		}
 	}
 }
 
@@ -1181,7 +1269,7 @@ $(window).blur(function() { this.isActive = false; });
 
 var	csv_data = '';
 var urlParams = getParameters();
-var days 			= urlParams['days'] || 21;
+var days 			= urlParams['days'] || 28;
 var startdate 		= urlParams['startdate'];
 var todate 			= urlParams['date'] || localtimeYMD();
 var serial			= urlParams['serial'];
@@ -1205,6 +1293,8 @@ if( urlParams['serial'] != undefined ) {
 
 if( urlParams['fullscreen'] == 1 ) {
 	gofull();
+} else {
+	gomax();
 }
 
 local = 0;
@@ -1245,10 +1335,17 @@ if( urlParams['test2'] )
 else
 if( document.location.href.match(/file:/) )
 {
+	GotData( Convert_Lumo_To_Matrix( testdata ) );
+
+/*
+	log("loading from disk..");
 	LoadFile( "Electricity_Consumption_Data.csv", function(result) {
+		log("Got data...");
 		GotData( Convert_Lumo_To_Matrix( result ) );
 		SetStatus( "Loaded Loal File Done." );
 	} );
+
+*/
 } else
 {
 	SetStatus( "Requesting server meter data .... " );
@@ -1279,7 +1376,12 @@ function ReplotData(new_offset,new_data)
 		csv_data = new_data;
 		start_offset = 0;
 	}
-	GotData( Convert_Lumo_To_Matrix( csv_data, start_offset, days ) );
+	if( csv_data.match( /^DATE,METERID,ESTIMATED/ ) ) {
+		GotData( Convert_SPAUSNET( csv_data, start_offset, days ) );
+	} else {
+		GotData( Convert_Lumo_To_Matrix( csv_data, start_offset, days ) );
+	}
+
 	SetStatus( "Replot Done." );
 }
 
