@@ -183,6 +183,8 @@ function gomax() {
 
 	$("#container").css('width', w+'px');
 	$("#container").css('height', h+'px');
+	$("#content").css('width', w+'px');
+	$("#content").css('height', h+'px');
 }
 
 function go_custom() {
@@ -600,6 +602,7 @@ function Init_Scene(meter_data)
 	} else {
 		w = window.innerWidth;
 		h = window.innerHeight - 64;
+		gomax();
 	}
 
 	log( "Init Scene, w="+w + " h="+h );
