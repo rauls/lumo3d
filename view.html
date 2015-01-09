@@ -142,6 +142,23 @@ var fullscreen = 0;
 var fullscreen_w = 0;
 var fullscreen_h = 0;
 
+function LS_SET( key, value )
+{
+    if(typeof(Storage)!=="undefined")
+    {
+        localStorage[ key ] = value;
+    }
+}
+
+function LS_GET( key )
+{
+    if(typeof(Storage)!=="undefined")
+    {
+        return localStorage[ key ];
+    }
+}
+
+
 function log () {
   if (typeof console == 'undefined') {
 	  return;
@@ -380,7 +397,7 @@ function CreateGrids(width,blockwidth,n_days,n_hours, highest)
 	//var mesh		= new THREE.Mesh( geometry, material );
 
 	// back board axis
-	var fullheight = 200;		// pixels
+	var fullheight = 500;		// pixels
 	var units = 15;
 	var scale = fullheight/highest;
 	while( (highest*scale) > fullheight ) {
@@ -431,7 +448,7 @@ function CreateGrids(width,blockwidth,n_days,n_hours, highest)
 	}
 
 	groupBg.add( AddText( "Time (0-23hr)",   0,        260, -( (1+n_days) * (blockwidth/2) ), 0,0 ) );
-	groupBg.add( AddText( "Days recent to past", -width/1.5, 260, 150,    0,90/180 * (Math.PI) ) );
+	groupBg.add( AddText( "Days recent to past", -width/1.8, 260, 150,    0,90/180 * (Math.PI) ) );
 
 	return scale;		// return the scaling factor
 }
@@ -446,11 +463,17 @@ function CreateBackground( meter_data )
     var blockWidth  = 0;
     var blockStep   = 0;
 
+    if( n_hours == 0 ) {
+    	meter_data.data[0] = [0,0,0];
+    	n_hours 	= meter_data.data[0].length;
+    }
+
 	blockStep = (width*2)/(n_hours);
 	blockWidth = blockStep * 1.00;
 	
-	log("Highest value is " + meter_data.highest + " n_days="+n_days + " n_hours="+n_hours + " scale="+scale );
 	var scale = CreateGrids(width, blockWidth, n_days, n_hours, meter_data.highest || 50 );
+
+	log("Highest value is " + meter_data.highest + " n_days="+n_days + " n_hours="+n_hours + " scale="+scale );
 	return scale;
 }
 
@@ -1050,21 +1073,25 @@ function Convert_SPAUSNET(csvdata, start_offset, total_days)
 	}
 	var temp = rows[ rows.length-2 ].split(",");
 	var lastDate = temp[0];
-	log("lastDate = " + lastDate );
 
 	var toDate = new Date( lastDate );
 	var endDate = new Date( toDate.getTime() - ((start_offset)*86400*1000) );
 	var fromDate = new Date( toDate.getTime() - ((max+start_offset)*86400*1000) );
 
+	log("fromDate = " + localtimeYMD(fromDate) );
+	log("endDate = "  + localtimeYMD(endDate) );
+	log("lastDate = " + lastDate );
+
 	var matrix = { "fromdate": 0, "data":[] , "labels":[], highest: 0 };
+	matrix.enddate = localtimeYMD(endDate);
 	if( toDate != undefined ) {
-		$("#header-text").text(  matrix.fromdate + " to " + localtimeYMD( endDate ) );
+		$("#header-text").text(  matrix.fromdate + " to " + matrix.enddate );
 	}
 	
 	var data = {};
 	var history = new Array();
 	var thisDate, prevDate;
-	var max = total_days || 30, di = 0, item;
+	var max = total_days || 31, di = 0, item;
 
 	// Traverse from start
 	for( var i = 1; i < rows.length && di < total_days; i++ )
@@ -1119,27 +1146,38 @@ function Convert_Lumo_To_Matrix( csvdata, start_offset, total_days )
 	}
 	var temp = rows[ rows.length-2 ].split(",");
 	var lastDate = temp[1];
-	log("lastDate = " + lastDate );
 
-	var max = total_days || 30, first = rows.length - max, last = first + max, di = 0;
+	var max = total_days || 30, 
+		first = Math.max(0,rows.length - max), 
+		last = first + max, di = 0;
+
 	first -= start_offset;
 	last  -= start_offset;
+
+	if( first < 0) { first = 0; }
+	if( last < 0)  { last = 0; }
 
 	var toDate = new Date( lastDate );
 	var endDate = new Date( toDate.getTime() - ((start_offset)*86400*1000) );
 	var fromDate = new Date( toDate.getTime() - ((max+start_offset)*86400*1000) );
 	var matrix = { "fromdate": localtimeYMD( fromDate ), "data":[] , "labels":[], highest: 0 };
+	matrix.enddate = localtimeYMD(endDate);
+
+	log("fromDate = " + localtimeYMD(fromDate) );
+	log("endDate = "  + localtimeYMD(endDate) );
+	log("lastDate = " + lastDate );
 	
 	if( toDate != undefined ) {
 		$("#header-text").text(  matrix.fromdate + " to " + localtimeYMD( endDate ) );
 	}
 	
+	log("last = " + last + " first = " + first + ", max = " + max);
 	// Traverse from END backwards for MAX items
 	for( var i = last-2; (i>0 && i>first); i-- )
 	{
-		log("Do row #"+i);
 		if( i>0 && i < rows.length )
 		{
+			log("Do row #"+i);
 			var row = rows[i];
 			var item = row.split(",");
 			var history = new Array();
@@ -1272,12 +1310,25 @@ $(window).blur(function() { this.isActive = false; });
 
 var	csv_data = '';
 var urlParams = getParameters();
-var days 			= urlParams['days'] || 28;
+var days 			= LS_GET('days') || 28;
 var startdate 		= urlParams['startdate'];
 var todate 			= urlParams['date'] || localtimeYMD();
 var serial			= urlParams['serial'];
 var mergemeters		= urlParams['merge'];
-var start_offset	= 0;
+var start_offset	= parseInt( LS_GET('back') )  || 0;
+
+if( urlParams['days']  != undefined ) {
+	days = parseInt( urlParams['days'] ); 
+}
+
+if( urlParams['back']  != undefined ) {
+	start_offset = parseInt( urlParams['back'] ); 
+}
+
+LS_SET( 'days', days );
+LS_SET( 'back', start_offset );
+
+log("Show total days "+days+" and back in time by " + start_offset + " days");
 
 if( startdate != undefined ) { startdate = startdate.replace("+"," "); }
 if( todate != undefined ) { todate = todate.replace("+"," "); }
@@ -1362,7 +1413,13 @@ if( document.location.href.match(/file:/) )
 		success: function( data ) {
 			SetStatus( "Got Data, now rendering ....." );
 			csv_data = data;
-			GotData( Convert_Lumo_To_Matrix( data, start_offset, days ) );
+
+			if( csv_data.match( /^DATE,METERID,ESTIMATED/ ) ) {
+				GotData( Convert_SPAUSNET( data, start_offset, days ) );
+			} else {
+				GotData( Convert_Lumo_To_Matrix( data, start_offset, days ) );
+			}
+
 			SetStatus( "Loaded Remote File Done." );
 		},
 		error : function(err) {
