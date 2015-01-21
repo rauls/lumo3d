@@ -3,6 +3,10 @@ version: 1
 runtime: php
 api_version: 1
 
+skip_files:
+- ^(.*/)?#.*#$
+- ^(.*/)?\.TMP$
+
 handlers:
 - url: /(.*\.css)
   mime_type: text/css
